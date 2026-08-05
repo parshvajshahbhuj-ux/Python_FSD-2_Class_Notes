@@ -13,6 +13,7 @@
 5. [Backend — Ideas App](#5-backend--ideas-app)
 6. [Backend — Analysis App](#6-backend--analysis-app)
 7. [Backend — Other Apps](#7-backend--other-apps)
+   - [7a. ml_models Folder (Detailed)](#7a-backend--ml_models-folder-detailed)
 8. [Frontend — Entry Point & Config](#8-frontend--entry-point--config)
 9. [Frontend — Pages](#9-frontend--pages)
 10. [Frontend — Analysis Sub-tabs](#10-frontend--analysis-sub-tabs)
@@ -658,6 +659,368 @@ Side-by-side comparison of two ideas.
 - Scripts to retrain the industry classifier on new data
 - Loads CSV data from `ml_models/data/raw/by-industry/`
 - New idea submissions are automatically appended to these CSVs
+
+---
+
+## 7a. Backend — ml_models Folder (Detailed)
+
+The `ml_models/` folder is the heart of VentureIQ's AI intelligence. It contains all the trained machine learning models, the data used to train them, and the scripts to retrain them.
+
+```
+ml_models/
+├── pipeline.py                  ← Master orchestration script
+├── train_models.py              ← Training script (original)
+├── train_models_real.py         ← Training script (real Kaggle data)
+├── validate_models.py           ← Validates all trained models
+├── features.py                  ← Feature extraction for inference
+├── features_real.py             ← Feature extraction (real data version)
+├── generate_dataset.py          ← Generates synthetic training data
+├── build_competitor_corpus.py   ← Builds competitor lookup JSON
+├── rebuild_training_arrays.py   ← Rebuilds NumPy training arrays
+├── diagnose.py                  ← Debug/diagnostics tool
+├── test_pipeline.py             ← End-to-end integration test
+├── test_different_ideas.py      ← Tests model on sample ideas
+├── verify_downloads.py          ← Checks Kaggle downloads are complete
+│
+├── data/
+│   ├── competitor_corpus.json   ← Built competitor database (runtime lookup)
+│   ├── raw/
+│   │   ├── by-industry/         ← One CSV per industry (live + training data)
+│   │   │   ├── Agriculture.csv
+│   │   │   ├── AI_ML.csv
+│   │   │   ├── Cybersecurity.csv
+│   │   │   ├── FoodTech.csv
+│   │   │   ├── Healthcare.csv
+│   │   │   ├── Social_Media.csv
+│   │   │   ├── Technology.csv
+│   │   │   └── TravelTech.csv
+│   │   └── news-category/       ← News articles for industry classifier
+│   └── processed/
+│       ├── startup_success.csv
+│       ├── bankruptcy_risk.csv
+│       ├── crunchbase_features.csv
+│       ├── indian_funding.csv
+│       ├── industry_text_classification.csv
+│       ├── unicorn_features.csv
+│       ├── training_arrays/     ← NumPy .npy arrays for fast training
+│       └── artifacts/           ← Saved vectorizers and label maps
+│
+├── trained/                     ← All trained model files (.pkl)
+│   ├── novelty.pkl
+│   ├── practicality.pkl
+│   ├── scalability.pkl
+│   ├── business_value.pkl
+│   ├── technology_adoption.pkl
+│   ├── market_opportunity_score.pkl
+│   ├── financial_risk.pkl
+│   ├── technical_risk.pkl
+│   ├── operational_risk.pkl
+│   ├── market_risk.pkl
+│   ├── legal_risk.pkl
+│   ├── investor_readiness.pkl
+│   ├── industry_classifier.pkl  ← LogisticRegression text classifier
+│   ├── tfidf_vectorizer.pkl     ← TF-IDF vectorizer for text
+│   └── industry_label_map.pkl   ← Label ID → industry name mapping
+│
+├── preprocess/                  ← Data cleaning scripts
+│   ├── run_all.py               ← Runs all preprocessors
+│   ├── startup_success.py       ← Cleans startup success dataset
+│   ├── bankruptcy.py            ← Cleans bankruptcy/risk dataset
+│   ├── crunchbase.py            ← Cleans Crunchbase funding data
+│   ├── indian_funding.py        ← Cleans Indian startup funding data
+│   ├── news_category.py         ← Cleans news articles for classifier
+│   └── unicorn_startups.py      ← Cleans unicorn valuation data
+│
+└── feature_engineering/         ← Feature extraction for training
+    ├── build_all.py             ← Runs all feature builders
+    ├── innovation_features.py   ← Features for novelty/scalability/etc.
+    ├── market_features.py       ← Features for market opportunity
+    ├── risk_features.py         ← Features for financial/market/tech risk
+    ├── investor_features.py     ← Features for investor readiness
+    └── industry_classifier_features.py ← TF-IDF text features
+```
+
+---
+
+### Trained Models — `ml_models/trained/`
+
+There are **15 trained model files** (`.pkl` = Python pickle, a serialized trained model):
+
+**Innovation Scoring Models** (each predicts a score 0–100):
+
+| File | What it predicts | Data source | Algorithm | R² score |
+|------|-----------------|-------------|-----------|----------|
+| `novelty.pkl` | How unique/new the idea is | Crunchbase (48K startups) | GradientBoosting | 0.72 |
+| `practicality.pkl` | How feasible to build | Crunchbase | GradientBoosting | 0.87 |
+| `scalability.pkl` | How much it can grow | Crunchbase | GradientBoosting | 1.00 |
+| `business_value.pkl` | Commercial potential | Crunchbase | GradientBoosting | 0.96 |
+| `technology_adoption.pkl` | Ease of tech adoption | Crunchbase | GradientBoosting | 1.00 |
+
+**Market Model:**
+
+| File | What it predicts | Data source | Algorithm | R² score |
+|------|-----------------|-------------|-----------|----------|
+| `market_opportunity_score.pkl` | Market size & timing | Crunchbase | GradientBoosting | 0.97 |
+
+**Risk Models** (each predicts a risk score 0–100):
+
+| File | What it predicts | Data source | Algorithm | R² score |
+|------|-----------------|-------------|-----------|----------|
+| `financial_risk.pkl` | Financial risk | Bankruptcy dataset (6.8K) | GradientBoosting | 0.95 |
+| `technical_risk.pkl` | Technical risk | Bankruptcy dataset | GradientBoosting | 0.95 |
+| `operational_risk.pkl` | Operational risk | Bankruptcy dataset | GradientBoosting | 0.95 |
+| `market_risk.pkl` | Market risk | Bankruptcy dataset | GradientBoosting | 0.94 |
+| `legal_risk.pkl` | Legal/compliance risk | Bankruptcy dataset | GradientBoosting | 0.87 |
+
+**Other Models:**
+
+| File | What it predicts | Data source | Algorithm | Performance |
+|------|-----------------|-------------|-----------|-------------|
+| `investor_readiness.pkl` | Investor-readiness score | Crunchbase | GradientBoosting | R²=0.97 |
+| `industry_classifier.pkl` | Which industry the idea belongs to | News articles (50K) | LogisticRegression | Acc=70% |
+| `tfidf_vectorizer.pkl` | Converts text to numbers for classifier | — | TF-IDF | — |
+| `industry_label_map.pkl` | Maps label IDs to industry names | — | — | — |
+
+> **R² score** = how well the model explains variance (1.0 = perfect, 0 = no better than average). **MAE** threshold ≤ 18 points is required for passing validation.
+
+---
+
+### `pipeline.py`
+
+**What it is:** Master orchestration script that runs the entire ML training pipeline end-to-end.
+
+**5 steps it runs:**
+1. **Download** — downloads 6 Kaggle datasets (needs `KAGGLE_API_TOKEN`)
+2. **Preprocess** — cleans raw CSV data → `data/processed/`
+3. **Features** — extracts numeric features → `data/processed/training_arrays/`
+4. **Train** — trains all 13 models → saves `.pkl` to `trained/`
+5. **Validate** — checks all models meet R² ≥ 0.25, MAE ≤ 18 thresholds
+
+**How to run:**
+```bash
+# Full pipeline (downloads Kaggle data):
+python -m ml_models.pipeline --full
+
+# Skip download (use existing data):
+python -m ml_models.pipeline
+
+# Run one step only:
+python -m ml_models.pipeline --step train
+python -m ml_models.pipeline --step validate
+```
+
+---
+
+### `train_models.py`
+
+**What it is:** Trains all 12 regression models using `GradientBoostingRegressor`.
+
+**What it does:**
+- Loads `training_data.json` (or generates it if missing)
+- For each of 12 target dimensions: splits data 80/20, fits a GradientBoostingRegressor with 100 estimators
+- Evaluates with MAE and R² on the test split
+- Saves each trained model as `trained/<target_name>.pkl`
+
+**Models trained:** novelty, practicality, scalability, business_value, technology_adoption, market_opportunity_score, financial_risk, technical_risk, operational_risk, market_risk, legal_risk, investor_readiness
+
+---
+
+### `validate_models.py`
+
+**What it is:** Quality gate that checks all trained models meet minimum performance thresholds before they are used in production.
+
+**Thresholds:**
+- Regression models: R² ≥ 0.25, MAE ≤ 18.0
+- Industry classifier: Accuracy ≥ 65%
+
+**What it checks:**
+1. `.pkl` file exists for every model
+2. Model loads without errors
+3. Model can make predictions
+4. Performance metrics meet thresholds
+
+**Exit codes:** `0` = all passed, `1` = one or more failed
+
+---
+
+### `features.py`
+
+**What it is:** Converts a submitted idea into a fixed-size numeric feature vector used by all scoring models at inference (prediction) time.
+
+**Features extracted (23 total):**
+
+| Feature | Source | Description |
+|---------|--------|-------------|
+| `description_length` | Idea text | Character count |
+| `word_count` | Idea text | Word count |
+| `no_quality_warning` | NLP output | 1 if description is good quality |
+| `industry_confidence` | NLP output | How confident the classifier is |
+| `n_tech_labels` | NLP output | Number of tech tags detected |
+| `has_ai_ml` | NLP output | 1 if AI/ML detected in idea |
+| `n_keywords` | NLP output | Number of extracted keywords |
+| `avg_keyword_score` | NLP output | Average relevance of keywords |
+| `n_similar_startups` | NLP output | Similar companies found |
+| `max_similarity_score` | NLP output | Highest similarity score found |
+| `team_size` | Idea metadata | Number of team members |
+| `dev_stage_norm` | Idea metadata | Stage encoded 0–1 (idea=0, scaling=1) |
+| `business_model_norm` | Idea metadata | Business model encoded 0–1 |
+| `has_pitch_deck` | Idea metadata | 1 if pitch deck was uploaded |
+| `industry_*` (9 cols) | NLP output | One-hot encoding for each industry |
+
+---
+
+### `build_competitor_corpus.py`
+
+**What it is:** Builds the `data/competitor_corpus.json` file used at runtime by the competitor analyzer.
+
+**What it does:**
+- Reads all 8 by-industry CSVs
+- Filters to active and acquired companies only
+- Selects top 10 companies per industry (by investor score)
+- For each company generates:
+  - A 20-dimension keyword vector (for similarity matching)
+  - Derived `strengths` (based on funding, stage, business model)
+  - Derived `weaknesses` (based on risk, status, industry)
+- Saves everything to `competitor_corpus.json`
+
+**When to re-run:** After adding new companies to the by-industry CSVs.
+```bash
+python -m ml_models.build_competitor_corpus
+```
+
+---
+
+### `data/raw/by-industry/` CSVs
+
+**What they are:** 8 CSV files, one per supported industry. These serve two purposes:
+
+1. **Training data** — used to train and retrain ML models
+2. **Competitor database** — used at runtime to find similar companies
+
+| File | Industry |
+|------|----------|
+| `Agriculture.csv` | AgriTech startups |
+| `AI_ML.csv` | Artificial Intelligence / Machine Learning |
+| `Cybersecurity.csv` | Cybersecurity companies |
+| `FoodTech.csv` | Food technology |
+| `Healthcare.csv` | HealthTech startups |
+| `Social_Media.csv` | Social media platforms |
+| `Technology.csv` | General technology |
+| `TravelTech.csv` | Travel technology |
+
+**Live data feed:** Every time a user submits a new idea via the platform, a row is automatically appended to the matching CSV (done in `ideas/views.py → _append_to_industry_csv()`). This means the training data grows over time.
+
+---
+
+### `data/processed/` Files
+
+Cleaned and feature-engineered versions of the raw Kaggle datasets, ready for model training.
+
+| File | Source | Records | Used for |
+|------|--------|---------|---------|
+| `startup_success.csv` | Kaggle: Startup Success | 923 | Success/failure patterns |
+| `bankruptcy_risk.csv` | Kaggle: Bankruptcy Prediction | 6,819 | Risk scoring (95 financial ratios) |
+| `crunchbase_features.csv` | Kaggle: Crunchbase | 54,294 | Market, innovation, investor readiness |
+| `indian_funding.csv` | Kaggle: Indian Startup Funding | 3,044 | Industry + funding patterns |
+| `industry_text_classification.csv` | Kaggle: News Category | 50,000 | Industry text classifier training |
+| `unicorn_features.csv` | Kaggle: Unicorn Startups | 1,186 | Valuation benchmarks |
+
+---
+
+### `data/competitor_corpus.json`
+
+**What it is:** A pre-built JSON database of Indian startups used at runtime by the competitor analyzer. Generated by `build_competitor_corpus.py`.
+
+**Structure:**
+```json
+[
+  {
+    "name": "Ola",
+    "vector": [0.1234, 0.5678, ...],  // 20-dim keyword vector
+    "metadata": {
+      "category": "TravelTech",
+      "city": "Bangalore",
+      "stage": "scaling",
+      "funding_inr": 5000000000,
+      "strengths": ["Strong funding base", "Proven traction"],
+      "weaknesses": ["High capital dependency"]
+    }
+  }
+]
+```
+
+When a user submits a new idea, the competitor analyzer computes cosine similarity between the idea's keyword vector and every entry in this corpus, returning the top matches.
+
+---
+
+### `preprocess/` Scripts
+
+These scripts clean the raw Kaggle CSV files into consistent formats for feature engineering.
+
+| File | What it cleans |
+|------|---------------|
+| `startup_success.py` | Startup success/failure dataset — encodes categorical fields, handles missing values |
+| `bankruptcy.py` | Company bankruptcy data — normalizes 95 financial ratios |
+| `crunchbase.py` | Crunchbase investments — extracts funding amounts, categories, stages |
+| `indian_funding.py` | Indian startup funding — extracts INR amounts, industry mappings |
+| `news_category.py` | News articles — filters to tech/business categories, maps to VentureIQ industries |
+| `unicorn_startups.py` | Unicorn data — extracts valuation, country, industry |
+| `run_all.py` | Runs all preprocessors above in sequence |
+
+---
+
+### `feature_engineering/` Scripts
+
+These scripts take the cleaned data and create numeric feature arrays ready for scikit-learn model training.
+
+| File | Features it builds |
+|------|-------------------|
+| `innovation_features.py` | Features for novelty, practicality, scalability, business_value, technology_adoption |
+| `market_features.py` | Features for market_opportunity_score |
+| `risk_features.py` | Features for all 5 risk dimensions (uses 95 bankruptcy financial ratios) |
+| `investor_features.py` | Features for investor_readiness |
+| `industry_classifier_features.py` | TF-IDF text features for industry classification |
+| `build_all.py` | Runs all feature builders and saves `.npy` arrays to `training_arrays/` |
+
+---
+
+### How the ML Models Are Used at Runtime
+
+When a user submits an idea, this is what happens behind the scenes:
+
+```
+Idea submitted
+    ↓
+analyze_idea.delay() — Celery background task starts
+    ↓
+nlp_engine/engine.py
+  → tfidf_vectorizer.pkl + industry_classifier.pkl
+  → predicts industry label (e.g. "HealthTech")
+  → extracts keywords, finds similar startups from corpus
+    ↓
+features.py → extract_features()
+  → builds a 23-element numeric vector from the idea
+    ↓
+scoring/innovation.py
+  → novelty.pkl, practicality.pkl, scalability.pkl,
+    business_value.pkl, technology_adoption.pkl
+  → predicts 5 scores → calculates composite_score
+    ↓
+scoring/market.py
+  → market_opportunity_score.pkl → predicts market score
+    ↓
+scoring/risk.py
+  → financial_risk.pkl, technical_risk.pkl, operational_risk.pkl,
+    market_risk.pkl, legal_risk.pkl → predicts 5 risk scores
+    ↓
+scoring/investor_readiness.py
+  → investor_readiness.pkl → predicts readiness score
+    ↓
+All results saved to analysis models in the database
+Idea.analysis_status = "complete"
+```
+
+> **Fallback:** All scoring engines have rule-based fallback logic. If a `.pkl` file fails to load, the engine computes scores using weighted formulas instead of the ML model — so the app never crashes even if models are missing.
 
 ---
 
