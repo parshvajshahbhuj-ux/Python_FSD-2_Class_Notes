@@ -1,1389 +1,1437 @@
-# VentureIQ — Complete File Guide
-
-> This document explains every important file in the project, what it does, and how it connects to the rest of the system. Use this as a reference when faculty ask about any specific file.
-
----
-
-## Table of Contents
-
-1. [Project Structure Overview](#1-project-structure-overview)
-2. [Backend — Configuration Files](#2-backend--configuration-files)
-3. [Backend — Django Settings](#3-backend--django-settings)
-4. [Backend — Accounts App](#4-backend--accounts-app)
-5. [Backend — Ideas App](#5-backend--ideas-app)
-6. [Backend — Analysis App](#6-backend--analysis-app)
-7. [Backend — Other Apps](#7-backend--other-apps)
-   - [7a. ml_models Folder (Detailed)](#7a-backend--ml_models-folder-detailed)
-8. [Frontend — Entry Point & Config](#8-frontend--entry-point--config)
-9. [Frontend — Pages](#9-frontend--pages)
-10. [Frontend — Analysis Sub-tabs](#10-frontend--analysis-sub-tabs)
-11. [Frontend — Admin Sub-pages](#11-frontend--admin-sub-pages)
-12. [Frontend — Components](#12-frontend--components)
+# VentureIQ — Faculty Presentation Guide
+### AI-Powered Startup Intelligence & Entrepreneurial Decision Support Platform
+### Team: Parshva Shah, Jinang Shah, Jay Raval | LJ University
 
 ---
 
-## 1. Project Structure Overview
+## TABLE OF CONTENTS
+
+1. [Project Overview](#1-project-overview)
+2. [Problem Statement](#2-problem-statement)
+3. [Technology Stack](#3-technology-stack)
+4. [System Architecture](#4-system-architecture)
+5. [Project Folder Structure — File by File](#5-project-folder-structure--file-by-file)
+6. [Backend — Django Apps Explained](#6-backend--django-apps-explained)
+7. [Frontend — Pages Explained](#7-frontend--pages-explained)
+8. [Database Design](#8-database-design)
+9. [AI / ML Pipeline — 18 Stages](#9-ai--ml-pipeline--18-stages)
+10. [Security Implementation](#10-security-implementation)
+11. [API Endpoints Reference](#11-api-endpoints-reference)
+12. [Deployment Architecture](#12-deployment-architecture)
+13. [Faculty Questions & Answers](#13-faculty-questions--answers)
+
+---
+
+## 1. PROJECT OVERVIEW
+
+**VentureIQ** is a full-stack, AI/ML-powered web application that evaluates startup ideas automatically. A founder types a startup idea description, clicks submit, and within minutes receives a complete intelligence report including:
+
+- Innovation score with 5 sub-dimensions
+- Market size and competition analysis
+- Risk assessment across 5 categories
+- SWOT analysis
+- Competitor mapping
+- Customer personas
+- Business Model Canvas
+- Team recommendations
+- Investor readiness score
+- 4-phase development roadmap
+- AI mentor chatbot (powered by Google Gemini)
+- Downloadable PDF report
+
+**Who uses it?**
+- Founders / Students — submit ideas, get analysis
+- Admins — manage platform, configure ML weights, view audit logs
+
+**Deployed on:**
+- Frontend → Vercel (React SPA)
+- Backend API → Render (Django + Gunicorn)
+- Database → Render managed PostgreSQL
+- Cache + Queue broker → Render managed Redis
+
+---
+
+## 2. PROBLEM STATEMENT
+
+Traditional startup idea evaluation requires:
+- Hiring consultants (expensive)
+- Weeks of manual research
+- Subjective human judgment
+
+VentureIQ solves this by providing an automated, objective, ML-powered evaluation in minutes — accessible to any student or early-stage founder.
+
+---
+
+## 3. TECHNOLOGY STACK
+
+### Backend (Python)
+| Technology | Version | Why We Used It |
+|-----------|---------|----------------|
+| Python | 3.11+ | Language of choice for ML/AI integration |
+| Django | 4.2.7 | Mature web framework with ORM and admin panel |
+| Django REST Framework | 3.14.0 | RESTful API with serializers and viewsets |
+| djangorestframework-simplejwt | 5.3.1 | JWT token-based authentication |
+| Celery | 5.3.6 | Async task queue for the 18-stage pipeline |
+| Redis | 7.0 | Message broker for Celery + result caching |
+| PostgreSQL | 15 | Primary relational database |
+| scikit-learn | 1.3.2 | ML models — GradientBoostingRegressor |
+| spaCy | 3.7.2 | NLP — tokenization, lemmatization, POS tagging |
+| NLTK | 3.8.1 | Text preprocessing |
+| pandas / numpy | 2.1.4 / 1.26.2 | Data manipulation and feature engineering |
+| WeasyPrint | 60.2 | PDF report generation from HTML templates |
+| Google Gemini 2.0 Flash API | — | AI Mentor chatbot responses |
+| Gunicorn | 21.2.0 | Production WSGI server |
+| WhiteNoise | 6.6.0 | Serve static files in production |
+
+### Frontend (JavaScript)
+| Technology | Version | Why We Used It |
+|-----------|---------|----------------|
+| React | 18.3.1 | Component-based UI with hooks |
+| Vite | 6.3.5 | Fast dev server and build tool |
+| Tailwind CSS | 3.4.17 | Utility-first CSS — faster styling, responsive |
+| React Router | 6.30.1 | Client-side routing (SPA navigation) |
+| TanStack React Query | 5.83.0 | Server state caching and data fetching |
+| Axios | 1.9.0 | HTTP client for API calls |
+| Recharts | 2.15.3 | Data visualization charts |
+| Headless UI | 2.2.4 | Accessible UI components (modals, dropdowns) |
+
+---
+
+## 4. SYSTEM ARCHITECTURE
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                 FRONTEND  (React 18 + Vite + Tailwind)               │
+│  User opens browser → Vercel delivers the React SPA                  │
+│  React Router handles page navigation without page reload            │
+│  Axios sends HTTP requests to Django backend                         │
+│  React Query caches responses and manages loading/error states       │
+└──────────────────────────┬──────────────────────────────────────────┘
+                           │  REST API calls (JSON over HTTPS)
+                           ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│              BACKEND  (Django 4.2 + DRF on Render)                   │
+│  JWT Auth → RBAC Middleware → API Views → Serializers → ORM → DB    │
+│  13 Django Apps handle different domains                             │
+└────────────┬────────────────────────────────────┬───────────────────┘
+             │  Celery task dispatch               │  DB queries
+             ▼                                    ▼
+┌────────────────────────┐             ┌──────────────────────────────┐
+│  Redis (Broker+Cache)  │             │  PostgreSQL Database (38+ tables)│
+│  Task queue for AI     │             │  Users, Ideas, Scores, Chat, │
+│  analysis pipeline     │             │  Reports, Analytics, Audit   │
+└────────────┬───────────┘             └──────────────────────────────┘
+             │
+             ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                     CELERY WORKER (AI/ML Engine)                     │
+│  Stage 1: Load Idea → Stage 2: NLP → Stage 3: Feature Extract →     │
+│  Stage 4: Industry Classify → Stage 5: Competitor Search →          │
+│  Stage 6-10: ML Scoring → Stage 11-15: Content Generation →         │
+│  Stage 16-18: Save → Status Update → Notify Founder                 │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+**Key Design Decisions:**
+- Celery separates the heavy AI/ML work from the web request cycle (non-blocking)
+- Redis is dual-purpose: Celery broker AND application cache
+- PostgreSQL uses UUID primary keys for security (no guessable integer IDs)
+- Soft-delete pattern: records are never physically deleted
+
+---
+
+## 5. PROJECT FOLDER STRUCTURE — FILE BY FILE
 
 ```
 VentureIQ/
-├── backend/                  ← Django REST API (Python)
-│   ├── ventureiq/            ← Django project config (settings, urls)
-│   ├── accounts/             ← User auth & profiles
-│   ├── ideas/                ← Idea submission & management
-│   ├── analysis/             ← AI analysis results (all sub-models)
-│   ├── scoring/              ← Innovation scoring weights
-│   ├── mentor_chat/          ← AI mentor chat
-│   ├── reports/              ← PDF reports & pitch decks
-│   ├── analytics/            ← Platform statistics
-│   ├── notifications/        ← User notifications
-│   ├── admin_panel/          ← Admin management APIs
-│   ├── nlp_engine/           ← NLP processing logic
-│   ├── ml_pipeline/          ← ML training pipeline
-│   ├── generators/           ← Content generators
-│   ├── competitor/           ← Competitor analysis
-│   ├── manage.py             ← Django CLI entry point
-│   ├── requirements.txt      ← Python dependencies
-│   └── .env                  ← Secret environment variables
+├── backend/                      ← Django project root
+│   ├── manage.py                 ← Django CLI entry point (run server, migrations)
+│   ├── requirements.txt          ← All Python dependencies with pinned versions
+│   ├── Procfile                  ← Tells Render/Heroku how to start the app
+│   ├── render.yaml               ← Infrastructure-as-code for Render deployment
+│   ├── pytest.ini                ← Test configuration (pytest settings)
+│   ├── .env                      ← Local environment variables (never committed)
+│   ├── .env.example              ← Template showing required env variable names
+│   │
+│   ├── ventureiq/                ← Core Django project package
+│   │   ├── settings/
+│   │   │   ├── base.py           ← Shared settings (DB, DRF, JWT, Celery, etc.)
+│   │   │   ├── dev.py            ← Development overrides (DEBUG=True, SQLite option)
+│   │   │   └── prod.py           ← Production overrides (HTTPS, HSTS, S3, etc.)
+│   │   ├── urls.py               ← Root URL router (registers all 13 app URL modules)
+│   │   ├── celery.py             ← Celery app setup and task autodiscovery
+│   │   ├── wsgi.py               ← WSGI entry for Gunicorn (production)
+│   │   └── asgi.py               ← ASGI entry (future WebSocket support)
+│   │
+│   ├── accounts/                 ← User auth, JWT, RBAC
+│   │   ├── models.py             ← CustomUser, RefreshToken, LoginAttempt, AuditLog
+│   │   ├── views.py              ← Register, Login, Logout, Profile, ChangePassword
+│   │   ├── serializers.py        ← Input/output validation for auth endpoints
+│   │   ├── permissions.py        ← Custom DRF permission classes (IsAdmin, IsFounder)
+│   │   ├── middleware.py         ← RateLimitMiddleware, LoginAttemptMiddleware, AuditLogMiddleware
+│   │   ├── managers.py           ← CustomUserManager (email-based create_user)
+│   │   ├── tokens.py             ← Password reset token generator (SHA-256)
+│   │   └── urls.py               ← Auth URL patterns
+│   │
+│   ├── ideas/                    ← Startup idea CRUD
+│   │   ├── models.py             ← Idea model (UUID PK, soft-delete, status machine)
+│   │   ├── views.py              ← List, Create, Detail, Update, Delete, TriggerAnalysis
+│   │   ├── serializers.py        ← IdeaSerializer with validation
+│   │   └── urls.py               ← Idea URL patterns
+│   │
+│   ├── analysis/                 ← Pipeline models + Celery tasks
+│   │   ├── models.py             ← NLPOutput, InnovationScore, MarketIntelligence,
+│   │   │                           RiskAssessment, SWOT, Recommendation, Persona,
+│   │   │                           Canvas, TeamRecommendation, InvestorReadiness, Roadmap
+│   │   ├── tasks.py              ← 18-stage Celery pipeline (run_analysis_pipeline)
+│   │   ├── views.py              ← AnalysisDetailView (returns all analysis results)
+│   │   └── urls.py               ← /api/v1/analysis/<idea_id>/
+│   │
+│   ├── nlp_engine/               ← NLP processing
+│   │   └── pipeline.py           ← Tokenize → lemmatize → TF-IDF → keywords → classify
+│   │
+│   ├── scoring/                  ← ML scoring modules
+│   │   ├── innovation.py         ← InnovationScoreEngine (5 sub-scores)
+│   │   ├── market.py             ← MarketIntelligenceModule
+│   │   ├── risk.py               ← RiskAssessmentEngine
+│   │   └── investor.py           ← InvestorReadinessModule
+│   │
+│   ├── ml_models/                ← Trained model files
+│   │   ├── novelty_model.pkl
+│   │   ├── practicality_model.pkl
+│   │   ├── scalability_model.pkl
+│   │   ├── business_value_model.pkl
+│   │   ├── tech_adoption_model.pkl
+│   │   ├── market_size_model.pkl
+│   │   ├── growth_rate_model.pkl
+│   │   ├── competition_model.pkl
+│   │   ├── audience_fit_model.pkl
+│   │   ├── timing_model.pkl
+│   │   ├── investor_readiness_model.pkl
+│   │   └── overall_risk_model.pkl
+│   │
+│   ├── generators/               ← Content generation modules
+│   │   ├── swot.py               ← SWOT generator (rule-based + ML)
+│   │   ├── recommendations.py    ← Revenue model, marketing, improvement tips
+│   │   ├── personas.py           ← Customer persona generator
+│   │   ├── canvas.py             ← Business Model Canvas (9 blocks)
+│   │   ├── team.py               ← Team role recommender
+│   │   └── roadmap.py            ← 4-phase roadmap generator
+│   │
+│   ├── competitor/               ← Competitor analysis
+│   │   ├── models.py             ← CompetitorProfile, CompetitorResult
+│   │   ├── analyzer.py           ← TF-IDF cosine similarity matching
+│   │   └── fixtures/competitors.json ← 50+ competitor profiles dataset
+│   │
+│   ├── mentor_chat/              ← AI mentor chatbot
+│   │   ├── models.py             ← ChatSession (UUID), ChatMessage
+│   │   ├── views.py              ← SessionListCreate, MessageListCreate (calls Gemini)
+│   │   └── gemini_client.py      ← Google Gemini API wrapper
+│   │
+│   ├── reports/                  ← PDF generation
+│   │   ├── models.py             ← Report (status, file path)
+│   │   ├── tasks.py              ← Celery task: generate PDF via WeasyPrint
+│   │   └── templates/            ← HTML templates for PDF
+│   │
+│   ├── analytics/                ← Platform analytics
+│   │   └── views.py              ← Aggregated stats (total ideas, score averages, trends)
+│   │
+│   ├── admin_panel/              ← Admin governance APIs
+│   │   └── views.py              ← Users, Categories, ScoreWeights, AuditLog, ML Models
+│   │
+│   └── notifications/            ← User notification system
+│       ├── models.py             ← Notification (user, message, is_read, type)
+│       └── views.py              ← List, mark-read endpoints
+```
+
+---
+
+### Frontend Folder Structure
+
+```
+frontend/
+├── index.html                    ← Single HTML file — React mounts here
+├── vite.config.js                ← Build config, dev proxy to Django backend
+├── tailwind.config.js            ← Tailwind theme customization
+├── postcss.config.js             ← CSS processing plugins
+├── vercel.json                   ← Vercel SPA routing config (all routes → index.html)
+├── package.json                  ← npm dependencies and scripts
 │
-├── frontend/                 ← React + Vite (JavaScript)
-│   ├── src/
-│   │   ├── main.jsx          ← App entry point
-│   │   ├── App.jsx           ← Route definitions
-│   │   ├── pages/            ← One file per page/screen
-│   │   ├── components/       ← Shared UI components
-│   │   ├── context/          ← Global state (auth)
-│   │   ├── api/              ← API call functions
-│   │   ├── hooks/            ← Custom React hooks
-│   │   └── utils/            ← Utility functions
-│   ├── package.json          ← JS dependencies
-│   └── vite.config.js        ← Build tool config
-│
-└── PROJECT_DOCUMENTATION.md  ← High-level project docs
+└── src/
+    ├── main.jsx                  ← App entry point (ReactDOM.render, providers)
+    ├── App.jsx                   ← Router setup, protected route wrappers
+    ├── index.css                 ← Global styles + Tailwind base imports
+    │
+    ├── api/                      ← Axios API client modules
+    │   ├── axiosInstance.js      ← Base Axios config (base URL, interceptors, JWT attach)
+    │   ├── authApi.js            ← Login, register, logout, profile calls
+    │   ├── ideasApi.js           ← CRUD + trigger analysis
+    │   ├── analysisApi.js        ← Fetch analysis results
+    │   ├── mentorApi.js          ← Chat session + message calls
+    │   └── reportsApi.js         ← Generate + download PDF
+    │
+    ├── context/                  ← React Context providers
+    │   └── AuthContext.jsx       ← Current user state, login/logout helpers
+    │
+    ├── hooks/                    ← Custom React hooks
+    │   ├── useAuth.js            ← Access auth context
+    │   └── useIdeas.js           ← React Query hooks for idea fetching
+    │
+    ├── components/               ← Reusable UI components
+    │   ├── Navbar.jsx
+    │   ├── Sidebar.jsx
+    │   ├── ProtectedRoute.jsx    ← Redirect to login if not authenticated
+    │   ├── LoadingSpinner.jsx
+    │   ├── ScoreCard.jsx
+    │   ├── ChartComponents/      ← Recharts wrappers (radar, bar, funnel, etc.)
+    │   └── NotificationPanel.jsx
+    │
+    ├── pages/                    ← One file per route/screen
+    │   ├── LandingPage.jsx       ← Public homepage
+    │   ├── LoginPage.jsx
+    │   ├── RegisterPage.jsx
+    │   ├── ForgotPasswordPage.jsx
+    │   ├── ResetPasswordPage.jsx
+    │   ├── DashboardPage.jsx
+    │   ├── IdeaSubmissionPage.jsx
+    │   ├── IdeaListPage.jsx
+    │   ├── IdeaDetailPage.jsx
+    │   ├── AnalysisTabsPage.jsx  ← 13-tab analysis view
+    │   ├── ComparisonPage.jsx
+    │   ├── MentorChatPage.jsx
+    │   ├── ReportsPage.jsx
+    │   ├── AnalyticsDashboardPage.jsx
+    │   ├── ProfilePage.jsx
+    │   ├── SubmissionHistoryPage.jsx
+    │   ├── PitchDeckEditorPage.jsx
+    │   └── AdminPanelPage.jsx
+    │
+    └── utils/                    ← Helper utilities
+        ├── formatters.js         ← Number, date, score formatting
+        └── validators.js         ← Frontend input validation helpers
 ```
 
 ---
 
-## 2. Backend — Configuration Files
+## 6. BACKEND — DJANGO APPS EXPLAINED
 
+### App 1: `accounts/` — Authentication & User Management
 
-### `backend/manage.py`
+**Purpose:** Handles everything related to users — registration, login, JWT tokens, passwords, roles, and audit logging.
 
-**What it is:** Django's command-line utility — the main tool used to control the backend.
+**Key files:**
+- `models.py` — Defines 5 models:
+  - `CustomUser` — UUID primary key, email-based login (not username), role field (founder/admin/mentor/student/incubation), soft-delete flags
+  - `RefreshToken` — stores SHA-256 hash of refresh tokens (never the raw token) for server-side revocation
+  - `LoginAttempt` — logs every login try per IP for brute-force protection
+  - `PasswordResetToken` — one-time token for password reset (SHA-256 hash stored)
+  - `AuditLog` — immutable record of every auth event and admin action
 
-**What it does:**
-- Sets `DJANGO_SETTINGS_MODULE=ventureiq.settings.dev` so Django loads the dev settings
-- Delegates all commands to Django's management system
+- `views.py` — 8 API views:
+  - `RegisterView` — creates user, returns access + refresh JWT
+  - `LoginView` — verifies password, returns tokens
+  - `LogoutView` — revokes refresh token
+  - `TokenRefreshView` — issues new token pair
+  - `ForgotPasswordView` — sends reset email (always returns 200 to prevent email enumeration)
+  - `ResetPasswordView` — validates token, sets new password
+  - `ProfileView` — GET/PATCH current user profile
+  - `ChangePasswordView` — requires current password before changing
 
-**Common commands:**
-```bash
-python manage.py runserver        # Start development server on localhost:8000
-python manage.py migrate          # Apply database migrations (create/update tables)
-python manage.py createsuperuser  # Create an admin account
-python manage.py makemigrations   # Generate new migration files after model changes
+- `middleware.py` — 3 middleware classes:
+  - `RateLimitMiddleware` — throttles too-frequent requests
+  - `LoginAttemptMiddleware` — blocks IPs after 5 failed login attempts
+  - `AuditLogMiddleware` — automatically logs every request/response
+
+- `permissions.py` — Custom DRF permission classes that check user role (IsAdmin, IsFounder)
+
+**JWT Flow:**
+```
+Register/Login → { access_token (60 min), refresh_token (7 days) }
+Every API call → Authorization: Bearer <access_token>
+Token expires → POST /token/refresh/ with refresh_token → new access_token
+Logout → refresh_token is blacklisted/revoked
 ```
 
 ---
 
-### `backend/requirements.txt`
+### App 2: `ideas/` — Startup Idea Management
 
-**What it is:** A list of all Python libraries the project needs, with pinned (exact) versions for reproducibility.
+**Purpose:** Core entity — the startup idea a founder submits.
 
-**Key dependencies:**
+**Key model fields (`Idea`):**
+- `id` — UUID (not integer), prevents ID enumeration attacks
+- `founder` — FK to CustomUser
+- `startup_name`, `description`, `target_audience`, `tagline`
+- `industry` — FK to StartupCategory
+- `budget_range`, `business_model`, `development_stage`, `team_size`
+- `analysis_status` — state machine: `pending → processing → classified → market_analyzed → scored → complete → failed`
+- `is_deleted` — soft-delete flag
+- `domain_data` — JSON field for industry-specific extra inputs
 
-| Library | Version | Purpose |
-|---------|---------|---------|
-| `Django` | 4.2.7 | Core web framework |
-| `djangorestframework` | 3.14.0 | Builds the REST API |
-| `djangorestframework-simplejwt` | 5.3.1 | JWT authentication tokens |
-| `django-cors-headers` | 4.3.1 | Allows frontend to call the API |
-| `psycopg2-binary` | 2.9.9 | PostgreSQL database driver |
-| `celery` | 5.3.6 | Background task queue (runs analysis async) |
-| `redis` | 5.0.1 | Message broker for Celery |
-| `spacy` | 3.7.2 | Natural language processing |
-| `scikit-learn` | 1.3.2 | Machine learning models |
-| `pandas` / `numpy` | 2.1.4 / 1.26.2 | Data manipulation |
-| `weasyprint` | 60.2 | PDF report generation |
-| `bleach` | 6.1.0 | Input sanitization / XSS prevention |
-| `gunicorn` | 21.2.0 | Production WSGI server |
-
-**Install all dependencies:**
-```bash
-pip install -r requirements.txt
+**Status Machine:**
+```
+Founder submits idea
+       ↓
+   [PENDING]
+       ↓  (Celery task starts)
+  [PROCESSING]
+       ↓  (NLP done)
+  [CLASSIFIED]
+       ↓  (Market analysis done)
+[MARKET_ANALYZED]
+       ↓  (ML scoring done)
+   [SCORED]
+       ↓  (All stages complete)
+  [COMPLETE]  ←→  [FAILED] (on error)
 ```
 
 ---
 
-### `backend/.env`
+### App 3: `analysis/` — Pipeline Models & Celery Tasks
 
-**What it is:** A local environment variables file. Contains all secrets and configuration values. **Never committed to git.**
+**Purpose:** Stores all AI analysis outputs and orchestrates the 18-stage pipeline.
 
-**Key variables:**
+**`tasks.py` — Celery task `run_analysis_pipeline(idea_id)`:**
+- This is the heart of the system
+- Decorated with `@shared_task(bind=True, max_retries=3)`
+- Uses exponential backoff: retries after 10s, 20s, 40s on failure
+- Calls NLP engine, ML scoring, all generators in sequence
+- Saves each output to corresponding model
+- Updates `Idea.analysis_status` at each stage
 
-| Variable | Purpose |
-|----------|---------|
-| `SECRET_KEY` | Django's cryptographic signing key |
-| `DEBUG` | `True` in dev, `False` in production |
-| `DB_NAME, DB_USER, DB_PASSWORD, DB_HOST, DB_PORT` | PostgreSQL connection details |
-| `GEMINI_API_KEY` | Google Gemini AI API key for analysis |
-| `GROQ_API_KEY` | Groq (Llama 3) API key for mentor chat |
-| `JWT_SECRET` | Signing key for JWT tokens |
-| `REDIS_URL` | Celery/Redis broker connection |
-| `CORS_ALLOWED_ORIGINS` | Frontend URLs allowed to call the API |
-
-> **Note:** The `.env.example` file shows the same keys with placeholder values — safe to share or commit.
+**Models in analysis app (12 output tables):**
+- `NLPOutput` — keywords, tokens, industry classification
+- `InnovationScore` — 5 sub-scores + composite score
+- `MarketIntelligence` — market_size, growth_rate, competition, audience_fit, timing
+- `RiskAssessment` — 5 risk dimensions + mitigation advice
+- `SWOTAnalysis` — strengths/weaknesses/opportunities/threats (JSON arrays)
+- `Recommendation` — revenue models, marketing tactics, improvements
+- `CustomerPersona` — 3 personas with demographics
+- `BusinessModelCanvas` — 9 blocks (key partners, activities, value prop, etc.)
+- `TeamRecommendation` — required roles
+- `InvestorReadiness` — score + missing requirements
+- `RoadmapPlan` — 4 development phases with milestones
 
 ---
 
-### `backend/Procfile`
+### App 4: `nlp_engine/` — Natural Language Processing
 
-**What it is:** Tells Render (cloud hosting) how to start the app in production.
+**Purpose:** Processes raw text of the startup description.
+
+**Pipeline steps:**
+1. Text cleaning (lowercase, remove special chars)
+2. Tokenization (split into words)
+3. Lemmatization with spaCy (runs → run, better → good)
+4. POS tagging (noun, verb, adjective detection)
+5. Stop-word removal
+6. TF-IDF vectorization (Term Frequency-Inverse Document Frequency)
+7. Keyword extraction (top-N most important terms)
+8. Industry classification (maps keywords to 16 industry categories)
+9. Technology label detection (AI, blockchain, IoT, etc.)
+10. Quality check (warns if description < 50 words)
+
+---
+
+### App 5: `scoring/` — ML Scoring Engines
+
+**Purpose:** Generates numeric scores using trained GradientBoosting ML models.
+
+**Four scoring modules:**
+
+1. **InnovationScoreEngine**
+   - Inputs: NLP features (keyword count, TF-IDF scores, industry encoding, development stage, team size)
+   - Outputs: novelty (0-100), practicality (0-100), scalability (0-100), business_value (0-100), tech_adoption (0-100)
+   - Composite score = weighted average of 5 sub-scores
+
+2. **MarketIntelligenceModule**
+   - Outputs: market_size (0-100), growth_rate (0-100), competition_level (low/medium/high), audience_fit (0-100), market_timing (0-100)
+
+3. **RiskAssessmentEngine**
+   - Outputs: financial_risk, technical_risk, operational_risk, market_risk, legal_risk (each 0-100)
+   - Generates mitigation suggestions for each high-risk area
+
+4. **InvestorReadinessModule**
+   - Outputs: investor_readiness_score (0-100)
+   - Lists missing requirements (e.g., "No prototype mentioned", "Team size too small")
+
+**Fallback:** If `.pkl` model files are missing/corrupt, the system falls back to rule-based heuristic scoring automatically.
+
+---
+
+### App 6: `ml_models/` — Trained ML Model Files
+
+**Purpose:** Stores 12 serialized (`.pkl`) GradientBoosting models.
+
+**Algorithm:** GradientBoostingRegressor from scikit-learn
+
+**Why GradientBoosting?**
+- Handles non-linear relationships in startup data
+- Robust to outliers compared to linear regression
+- Ensemble method (combines many weak decision trees) = better accuracy
+- Built-in feature importance for explainability
+
+**Training process:**
+- Training dataset: synthetic startup evaluation data
+- Features extracted: keyword_count, description_length, tfidf_score, industry_code, development_stage_code, team_size, business_model_code
+- Cross-validation used to prevent overfitting
+- Models serialized with `pickle`/`joblib` for reuse without retraining
+
+**12 trained models:**
+`novelty`, `practicality`, `scalability`, `business_value`, `tech_adoption`, `market_size`, `growth_rate`, `competition`, `audience_fit`, `timing`, `investor_readiness`, `overall_risk`
+
+---
+
+### App 7: `generators/` — Content Generation
+
+**Purpose:** Generates human-readable content (not just numbers).
+
+| Module | What it generates |
+|--------|------------------|
+| `swot.py` | 4 SWOT lists based on scores + industry |
+| `recommendations.py` | Revenue model suggestions, marketing channels, improvement tips |
+| `personas.py` | 3 customer personas (name, age, job, pain points, goals) |
+| `canvas.py` | 9-block Business Model Canvas |
+| `team.py` | Required team roles (CTO, Marketing Lead, etc.) |
+| `roadmap.py` | 4-phase plan (Phase 1: Validation, Phase 2: MVP, Phase 3: Growth, Phase 4: Scale) |
+
+---
+
+### App 8: `competitor/` — Competitor Analysis
+
+**Purpose:** Finds similar existing startups/companies from a curated dataset.
+
+**How it works (TF-IDF Cosine Similarity):**
+1. Load `competitors.json` (50+ competitor profiles, each with description text)
+2. Build a TF-IDF matrix of all competitor descriptions
+3. Convert the user's idea description to a TF-IDF vector
+4. Calculate cosine similarity between the idea and each competitor
+5. Return top-N most similar competitors with similarity scores
+6. Classify competition level: Low (<0.3), Medium (0.3-0.6), High (>0.6)
+
+---
+
+### App 9: `mentor_chat/` — AI Mentor Chatbot
+
+**Purpose:** Conversational AI that answers questions about the startup idea.
+
+**How it works:**
+1. Founder opens chat on their analyzed idea's page
+2. System creates a `ChatSession` (UUID-based)
+3. On each message, the backend:
+   - Loads last 10 messages as conversation history
+   - Injects full startup analysis data as context
+   - Calls Google Gemini 2.0 Flash API
+   - Saves AI response as a `ChatMessage`
+4. If Gemini API fails → falls back to rule-based responses
+
+**Context injected to Gemini:**
+- Startup name and description
+- Innovation scores, market scores, risk scores
+- SWOT analysis
+- Competitor results
+- Investor readiness score
+
+---
+
+### App 10: `reports/` — PDF Generation
+
+**Purpose:** Creates a downloadable PDF with the full analysis.
+
+**Process:**
+1. Celery task triggered by founder clicking "Generate Report"
+2. Django renders an HTML template with all analysis data
+3. WeasyPrint converts HTML → PDF (supports CSS, charts)
+4. PDF saved to `media/reports/` folder
+5. Download URL returned to frontend
+
+---
+
+### App 11: `analytics/` — Platform Analytics
+
+**Purpose:** Admin dashboard showing platform-wide statistics.
+
+**Data provided:**
+- Total ideas submitted, total users, analyses completed
+- Industry distribution (FinTech 30%, HealthTech 20%, etc.)
+- Monthly activity trends
+- Average scores by dimension
+- Top ideas leaderboard
+- Risk distribution (Low/Medium/High)
+
+---
+
+### App 12: `admin_panel/` — Administrative APIs
+
+**Purpose:** Backend endpoints exclusively for admin users.
+
+**Endpoints:**
+- User management (list all users, toggle active/inactive)
+- Category management (add/edit startup industries)
+- Score weight configuration (change ML score weights)
+- ML model metadata (view model info)
+- Audit log viewer
+- System notifications management
+
+---
+
+### App 13: `notifications/` — User Notifications
+
+**Purpose:** In-app notification system for founders.
+
+**Triggers:**
+- Analysis complete → "Your idea analysis is ready!"
+- Analysis failed → "Analysis failed, please retry"
+- Admin messages
+
+---
+
+## 7. FRONTEND — PAGES EXPLAINED
+
+### Public Pages (No Login Required)
+
+| Page | File | What it does |
+|------|------|-------------|
+| Landing Page | `LandingPage.jsx` | Hero section, 55 startup idea explorer, features, how-it-works, testimonials, FAQ, government schemes section, team section, footer |
+| Login | `LoginPage.jsx` | Split-screen dark design. JWT tokens stored in memory/localStorage on success |
+| Register | `RegisterPage.jsx` | Sign up with full_name, email, password. Password strength indicator shows in real time |
+| Forgot Password | `ForgotPasswordPage.jsx` | Sends reset email via backend (always shows "check email" regardless of whether email exists) |
+| Reset Password | `ResetPasswordPage.jsx` | User lands here from email link, enters new password |
+
+### Authenticated Pages (Founder)
+
+| Page | File | What it does |
+|------|------|-------------|
+| Dashboard | `DashboardPage.jsx` | Summary stats (ideas submitted, analyzed, avg score), recent ideas, quick action buttons |
+| Submit Idea | `IdeaSubmissionPage.jsx` | Multi-step form: Step 1 (basic info), Step 2 (business details), Step 3 (review & submit). Triggers analysis pipeline on submit |
+| Idea List | `IdeaListPage.jsx` | All submitted ideas with status badges (pending/processing/complete/failed), search, filter |
+| Idea Detail | `IdeaDetailPage.jsx` | Shows idea info + link to analysis tabs |
+| Analysis Tabs | `AnalysisTabsPage.jsx` | **13-tab view** covering all analysis dimensions (see below) |
+| Comparison | `ComparisonPage.jsx` | Select 2-3 ideas, side-by-side comparison table + radar chart |
+| Reports | `ReportsPage.jsx` | Generate and download PDF report for an idea |
+| AI Mentor | `MentorChatPage.jsx` | Chat interface. User types a question, Gemini AI answers in context of their startup |
+| Analytics | `AnalyticsDashboardPage.jsx` | 15+ chart types showing platform insights and their own performance data |
+| Profile | `ProfilePage.jsx` | Edit name, avatar, bio, theme preference, change password |
+| Submission History | `SubmissionHistoryPage.jsx` | Timeline view of all past idea submissions |
+| Pitch Deck Editor | `PitchDeckEditorPage.jsx` | Auto-generates a pitch deck from analysis data |
+
+### Admin Pages
+
+| Page | File | What it does |
+|------|------|-------------|
+| Admin Panel | `AdminPanelPage.jsx` | 6-tab admin view: Users, Categories, Score Weights, Audit Log, ML Models, Notifications |
+
+### Analysis Tabs Page — 13 Tabs Detail
+
+| Tab | Content |
+|-----|---------|
+| 1. Innovation | Radar chart of 5 sub-scores, composite score card |
+| 2. Market | Market size, growth rate, competition gauge, timing score |
+| 3. Risk | 5 risk bars, risk band (Low/Medium/High), mitigation tips |
+| 4. SWOT | 4-quadrant SWOT board |
+| 5. Recommendations | Revenue models, marketing channels, improvement suggestions |
+| 6. Personas | 3 customer persona cards (avatar, demographics, pain points, goals) |
+| 7. Canvas | 9-block Business Model Canvas grid |
+| 8. Competitors | Competitor cards with similarity %, links |
+| 9. Roadmap | 4-phase timeline with milestones |
+| 10. Team | Required roles table with skills needed |
+| 11. Investor Readiness | Score gauge + checklist of what's missing |
+| 12. Govt. Schemes | Relevant government startup schemes by industry |
+| 13. Charts | 8 advanced charts (candlestick, bubble, radar, waterfall, heatmap, gauges, sparklines, polar wheel) |
+
+---
+
+## 8. DATABASE DESIGN
+
+**Database:** PostgreSQL 15
+**Total Tables:** 38+
+**Primary Keys:** UUID for user-facing entities (prevents enumeration), BigAutoField for internal lookup tables
+
+### Core Table Relationships
 
 ```
-web: gunicorn ventureiq.wsgi --log-file -
+accounts_user (UUID PK)
+    │
+    ├── ideas_idea (UUID PK, FK → accounts_user)
+    │       │
+    │       ├── analysis_nlpoutput (FK → ideas_idea)
+    │       ├── analysis_innovationscore (FK → ideas_idea)
+    │       ├── analysis_marketintelligence (FK → ideas_idea)
+    │       ├── analysis_riskassessment (FK → ideas_idea)
+    │       ├── analysis_swotanalysis (FK → ideas_idea)
+    │       ├── analysis_recommendation (FK → ideas_idea)
+    │       ├── analysis_customerpersona (FK → ideas_idea)
+    │       ├── analysis_businessmodelcanvas (FK → ideas_idea)
+    │       ├── analysis_teamrecommendation (FK → ideas_idea)
+    │       ├── analysis_investorreadiness (FK → ideas_idea)
+    │       ├── analysis_roadmapplan (FK → ideas_idea)
+    │       └── competitor_competitorresult (FK → ideas_idea)
+    │
+    ├── mentor_chat_session (UUID PK, FK → accounts_user)
+    │       └── mentor_chat_message (FK → session)
+    │
+    ├── reports_report (FK → accounts_user, FK → ideas_idea)
+    ├── notifications_notification (FK → accounts_user)
+    └── accounts_auditlog (FK → accounts_user, nullable)
+
+ideas_startupcategory (separate lookup table)
+    └── ideas_idea.industry_id → ideas_startupcategory
+```
+
+### Design Decisions
+
+1. **UUID primary keys** — Cannot guess other users' idea IDs via sequential integers
+2. **Soft delete** — `is_deleted=True` instead of DELETE; data preserved for audit
+3. **JSON fields** — `domain_data`, `swot` items stored as JSON for flexibility
+4. **Indexed columns** — `founder_id`, `analysis_status`, `industry_id`, `email`, `role` all have indexes for fast queries
+5. **Separate analysis tables** — Each analysis dimension is its own table (not one giant JSON blob) → better query performance, easier to update individual dimensions
+6. **`django_migrations` table** — Django tracks applied migrations; never manually alter DB schema
+
+### Sample SQL Queries
+
+```sql
+-- Count ideas by analysis status
+SELECT analysis_status, COUNT(*) 
+FROM ideas_idea 
+WHERE is_deleted = FALSE 
+GROUP BY analysis_status;
+
+-- Top 5 ideas by innovation score
+SELECT i.startup_name, s.composite_score 
+FROM ideas_idea i 
+JOIN analysis_innovationscore s ON s.idea_id = i.id 
+ORDER BY s.composite_score DESC 
+LIMIT 5;
+
+-- Industry distribution
+SELECT sc.name, COUNT(i.id) as total
+FROM ideas_idea i
+JOIN ideas_startupcategory sc ON i.industry_id = sc.id
+WHERE i.is_deleted = FALSE
+GROUP BY sc.name
+ORDER BY total DESC;
+
+-- Average risk scores
+SELECT 
+    AVG(financial_risk_score) as avg_financial,
+    AVG(technical_risk_score) as avg_technical,
+    AVG(overall_risk_score) as avg_overall
+FROM analysis_riskassessment;
 ```
 
 ---
 
-### `backend/render.yaml`
+## 9. AI / ML PIPELINE — 18 STAGES
 
-**What it is:** Infrastructure-as-code for deploying to Render. Defines the web service, database, and environment variables needed for production deployment.
+When a founder submits an idea and clicks "Analyze", the following happens:
 
----
+**Step 1:** Django view receives the request, sets `idea.analysis_status = "processing"`, and dispatches the Celery task `run_analysis_pipeline(idea_id)` asynchronously.
 
-## 3. Backend — Django Settings
+**Step 2:** The web response returns immediately to the user — they don't wait. The pipeline runs in the background.
 
+### The 18 Stages (inside Celery worker):
 
-### `backend/ventureiq/settings/base.py`
+| # | Stage | Module | Output Stored In |
+|---|-------|--------|-----------------|
+| 1 | Data Ingestion | `analysis/tasks.py` | — |
+| 2 | NLP Preprocessing | `nlp_engine/pipeline.py` | — |
+| 3 | Feature Extraction | `nlp_engine/pipeline.py` | `analysis_nlpoutput` |
+| 4 | Industry Classification | `nlp_engine/pipeline.py` | `analysis_nlpoutput.industry` |
+| 5 | Competitor Search | `competitor/analyzer.py` | `competitor_competitorresult` |
+| 6 | Innovation Scoring | `scoring/innovation.py` | `analysis_innovationscore` |
+| 7 | Market Intelligence | `scoring/market.py` | `analysis_marketintelligence` |
+| 8 | Risk Assessment | `scoring/risk.py` | `analysis_riskassessment` |
+| 9 | SWOT Generation | `generators/swot.py` | `analysis_swotanalysis` |
+| 10 | Recommendations | `generators/recommendations.py` | `analysis_recommendation` |
+| 11 | Customer Personas | `generators/personas.py` | `analysis_customerpersona` |
+| 12 | Business Model Canvas | `generators/canvas.py` | `analysis_businessmodelcanvas` |
+| 13 | Team Recommendation | `generators/team.py` | `analysis_teamrecommendation` |
+| 14 | Investor Readiness | `scoring/investor.py` | `analysis_investorreadiness` |
+| 15 | Roadmap Generation | `generators/roadmap.py` | `analysis_roadmapplan` |
+| 16 | Persist to Database | `analysis/tasks.py` | All above tables |
+| 17 | Status Update | `analysis/tasks.py` | `ideas_idea.analysis_status = "complete"` |
+| 18 | Notify Founder | `notifications/` | `notifications_notification` |
 
-**What it is:** The core Django configuration shared across all environments (dev and production).
+### Error Handling in Pipeline
 
-**Key sections:**
-
-**INSTALLED_APPS** — All Django apps that are loaded:
-- Django built-ins: admin, auth, sessions, staticfiles
-- Third-party: rest_framework, simplejwt, corsheaders
-- Local apps: accounts, ideas, analysis, scoring, mentor_chat, reports, analytics, notifications, ml_pipeline, admin_panel
-
-**MIDDLEWARE** — The request/response processing pipeline (in order):
-1. `SecurityMiddleware` — adds HTTPS/security headers
-2. `CorsMiddleware` — handles cross-origin requests from the frontend
-3. `RateLimitMiddleware` — throttles excessive API calls
-4. `LoginAttemptMiddleware` — blocks IPs after 5 failed login attempts
-5. Standard Django middleware (sessions, CSRF, auth, etc.)
-6. `AuditLogMiddleware` — records all actions for compliance
-
-**DATABASES** — PostgreSQL connection using `.env` values:
 ```python
-ENGINE = "django.db.backends.postgresql"
-NAME   = DB_NAME     # ventureiq
-USER   = DB_USER     # postgres
-PORT   = DB_PORT     # 5432
+@shared_task(bind=True, max_retries=3)
+def run_analysis_pipeline(self, idea_id):
+    try:
+        # ... run stages ...
+    except Exception as exc:
+        # Exponential backoff: retry after 10s, 20s, 40s
+        raise self.retry(exc=exc, countdown=10 * (2 ** self.request.retries))
+    # After 3 failures:
+    # - Set idea.analysis_status = "failed"
+    # - Create AuditLog entry
+    # - Send failure notification to founder
 ```
 
-**REST_FRAMEWORK** — API defaults:
-- Authentication: JWT (Bearer token)
-- Default permission: IsAuthenticated (login required)
-- Pagination: 20 items per page
-- Response format: JSON only
+---
 
-**SIMPLE_JWT** — Token settings:
-- Access token expires: **60 minutes**
-- Refresh token expires: **7 days**
-- Token rotation: enabled (new refresh token issued on each refresh)
+## 10. SECURITY IMPLEMENTATION
 
-**CELERY** — Async task queue:
-- Broker: Redis
-- Task routing: analysis tasks → `analysis` queue, reports → `reports` queue
+### 1. Authentication — JWT (JSON Web Tokens)
+- Access token: valid for **60 minutes**
+- Refresh token: valid for **7 days**
+- Stored in browser (localStorage or HTTP-only cookie)
+- Every API request must include: `Authorization: Bearer <access_token>`
+- Logout revokes the refresh token server-side (stored hash in `accounts_refreshtoken`)
+- Token rotation: each refresh issues a new refresh token and blacklists the old one
+
+### 2. Password Security
+- Django's `AbstractBaseUser` never stores plaintext passwords
+- Password is hashed with **bcrypt** (work factor ≥ 12)
+- Password reset uses SHA-256 hashed one-time tokens (raw token never stored in DB)
+- Forgot password endpoint always returns 200 (prevents knowing if email is registered)
+
+### 3. Role-Based Access Control (RBAC)
+- 5 roles: student, founder, mentor, incubation, admin
+- Custom DRF permission class `IsAdmin` on all admin endpoints
+- Custom `IsFounder` on idea and analysis endpoints
+- `ProtectedRoute` in React prevents accessing pages without valid token
+
+### 4. Brute-Force Protection
+- `LoginAttemptMiddleware` blocks an IP after **5 failed login attempts**
+- All attempts logged in `accounts_loginattempt` table
+
+### 5. SQL Injection Prevention
+- Django ORM uses **parameterized queries** exclusively — no raw SQL with user input
+
+### 6. XSS Prevention
+- DRF returns JSON, not HTML — eliminates most XSS vectors
+- React DOM automatically escapes rendered values
+
+### 7. CORS Policy
+- `django-cors-headers` configured with explicit origin allowlist
+- Only `localhost:5173` (dev) and Vercel URL (prod) can make cross-origin requests
+
+### 8. HTTPS
+- Enforced in production via Render's TLS termination
+- `SECURE_SSL_REDIRECT = True` in `prod.py`
+- HSTS headers enabled
+
+### 9. Soft Delete
+- Users and ideas are never physically deleted
+- `is_deleted=True` flag preserves data for audit purposes
+- Queries always filter `is_deleted=False`
+
+### 10. Audit Logging
+- `AuditLogMiddleware` records every request with user ID, action, IP address
+- AuditLog table is append-only (no update/delete permissions)
 
 ---
 
-### `backend/ventureiq/settings/dev.py`
+## 11. API ENDPOINTS REFERENCE
 
-**What it is:** Development-specific overrides. Sets `DEBUG=True`, allows all hosts, uses console email backend (prints emails to terminal instead of sending them).
+**Base URL:** `http://localhost:8000/api/v1/` (dev) or `https://ventureiq-api.onrender.com/api/v1/` (prod)
 
----
-
-### `backend/ventureiq/settings/prod.py`
-
-**What it is:** Production overrides. Sets `DEBUG=False`, reads `DATABASE_URL` from Render, enables WhiteNoise for static files, uses real SMTP email.
-
----
-
-### `backend/ventureiq/urls.py`
-
-**What it is:** The main URL router — maps URL paths to Django apps.
-
-**All API endpoints:**
-
-| URL Prefix | App Mounted | Purpose |
-|------------|-------------|---------|
-| `/admin/` | Django admin | Built-in superuser interface |
-| `/api/v1/auth/` | accounts | Login, register, password reset |
-| `/api/v1/ideas/` | ideas + competitor | Submit and manage ideas |
-| `/api/v1/analysis/` | analysis | AI analysis results |
-| `/api/v1/reports/` | reports | PDF reports |
-| `/api/v1/comparisons/` | analysis | Side-by-side idea comparison |
-| `/api/v1/mentor/` | mentor_chat | AI chat sessions |
-| `/api/v1/analytics/` | analytics | Platform statistics |
-| `/api/v1/notifications/` | notifications | User notifications |
-| `/api/v1/admin-panel/` | admin_panel | Admin management |
-
----
-
-### `backend/ventureiq/celery.py`
-
-**What it is:** Celery app configuration. Configures the async task worker that runs the AI analysis pipeline in the background so API responses don't block.
-
----
-
-## 4. Backend — Accounts App
-
-
-### `backend/accounts/models.py`
-
-**What it is:** Defines all database tables for users and authentication.
-
-**Models:**
-
-#### `CustomUser`
-Replaces Django's default User model.
-- **Primary key:** UUID (not auto-increment integer)
-- **Login field:** Email (not username)
-- **Roles:** `student`, `founder`, `mentor`, `incubation`, `admin`
-- **Soft-delete:** `is_deleted` + `deleted_at` flags (records are hidden, not truly deleted)
-- **Extra fields:** `full_name`, `avatar_url`, `bio`, `theme` (light/dark)
-
-#### `RefreshToken`
-Stores SHA-256 hash of issued JWT refresh tokens.
-- Enables server-side revocation (logout from any device)
-- The raw token is never stored — only its hash
-
-#### `LoginAttempt`
-Records every login attempt (success or failure) per IP address.
-- Used by `LoginAttemptMiddleware` to block after 5 consecutive failures
-- Prevents brute-force password attacks
-
-#### `PasswordResetToken`
-One-time password reset tokens.
-- Stored as SHA-256 hash only (raw token is emailed to the user)
-- Has `expires_at` (30 min) and `used` flag
-
-#### `AuditLog`
-Immutable record of all important system events.
-- Logs: logins, idea submissions, deletions, admin actions
-- Fields: `user`, `action`, `resource`, `resource_id`, `ip_address`, `detail`
-
----
-
-### `backend/accounts/views.py`
-
-**What it is:** All authentication API endpoints.
-
-| View | Method | URL | What it does |
-|------|--------|-----|-------------|
-| `RegisterView` | POST | `/api/v1/auth/register/` | Creates account, returns JWT tokens |
-| `LoginView` | POST | `/api/v1/auth/login/` | Verifies credentials, returns tokens |
-| `LogoutView` | POST | `/api/v1/auth/logout/` | Revokes refresh token |
-| `TokenRefreshView` | POST | `/api/v1/auth/token/refresh/` | Issues new token pair |
-| `ForgotPasswordView` | POST | `/api/v1/auth/password/forgot/` | Sends reset email |
-| `ResetPasswordView` | POST | `/api/v1/auth/password/reset/` | Applies new password |
-| `ProfileView` | GET/PATCH | `/api/v1/auth/profile/` | Read or update profile |
-| `ChangePasswordView` | POST | `/api/v1/auth/password/change/` | Change password (needs current password) |
-
-**Response format** (all endpoints):
+**Response Format — All endpoints return:**
 ```json
-{ "status": "success", "data": { ... }, "errors": [] }
-{ "status": "error",   "data": null,    "errors": ["..."] }
+{
+  "status": "success",
+  "data": { ... },
+  "errors": []
+}
 ```
 
-> **Security note:** `ForgotPasswordView` always returns HTTP 200 even if the email doesn't exist — this prevents attackers from discovering valid email addresses.
+### Authentication Endpoints
+
+| Method | URL | Auth Required | Description |
+|--------|-----|--------------|-------------|
+| POST | `/auth/register/` | No | Register new user, returns JWT tokens |
+| POST | `/auth/login/` | No | Login, returns JWT tokens |
+| POST | `/auth/logout/` | Yes | Revoke refresh token |
+| POST | `/auth/token/refresh/` | Yes | Get new access token |
+| GET | `/auth/profile/` | Yes | Get current user profile |
+| PATCH | `/auth/profile/` | Yes | Update profile fields |
+| POST | `/auth/password/forgot/` | No | Send password reset email |
+| POST | `/auth/password/reset/` | No | Set new password with reset token |
+| POST | `/auth/password/change/` | Yes | Change password (requires current) |
+
+### Ideas Endpoints
+
+| Method | URL | Auth Required | Description |
+|--------|-----|--------------|-------------|
+| GET | `/ideas/` | Yes | List founder's own ideas |
+| POST | `/ideas/` | Yes | Submit new idea + trigger analysis |
+| GET | `/ideas/<uuid>/` | Yes | Get idea detail |
+| PUT | `/ideas/<uuid>/` | Yes | Update idea |
+| DELETE | `/ideas/<uuid>/` | Yes | Soft-delete idea |
+| GET | `/ideas/<uuid>/analysis/` | Yes | Get complete analysis results |
+
+### Mentor Chat Endpoints
+
+| Method | URL | Auth Required | Description |
+|--------|-----|--------------|-------------|
+| GET | `/mentor/sessions/` | Yes | List chat sessions |
+| POST | `/mentor/sessions/` | Yes | Create new session for an idea |
+| GET | `/mentor/sessions/<id>/messages/` | Yes | Get message history |
+| POST | `/mentor/sessions/<id>/messages/` | Yes | Send message, get AI reply |
+
+### Reports Endpoints
+
+| Method | URL | Auth Required | Description |
+|--------|-----|--------------|-------------|
+| GET | `/reports/` | Yes | List generated reports |
+| POST | `/reports/generate/` | Yes | Trigger PDF generation |
+| GET | `/reports/<id>/download/` | Yes | Download PDF file |
+
+### Analytics & Admin
+
+| Method | URL | Auth Required | Description |
+|--------|-----|--------------|-------------|
+| GET | `/analytics/` | Yes (any) | Platform analytics data |
+| GET | `/comparisons/compare/` | Yes | Compare 2-3 ideas |
+| GET | `/admin-panel/users/` | Admin only | List all users |
+| GET | `/admin-panel/audit-log/` | Admin only | Security audit trail |
+| GET/PUT | `/admin-panel/score-weights/` | Admin only | ML score weights config |
 
 ---
 
-### `backend/accounts/serializers.py`
+## 12. DEPLOYMENT ARCHITECTURE
 
-**What it is:** Validates and transforms request/response data for auth endpoints. Each serializer maps to one view (e.g., `RegisterSerializer`, `LoginSerializer`, `ProfileSerializer`).
+```
+Developer pushes code to GitHub
+        │
+        ▼
+┌───────────────────┐          ┌──────────────────────────────┐
+│    Vercel          │          │    Render                     │
+│  (Frontend)        │          │  (Backend)                    │
+│                   │          │                              │
+│  npm run build    │          │  ventureiq-api               │
+│  React → static  │          │  (Django + Gunicorn)          │
+│  files on CDN     │          │                              │
+│                   │          │  ventureiq-worker            │
+│  vercel.json:     │          │  (Celery worker)             │
+│  all routes →     │          │                              │
+│  index.html       │          │  ventureiq-beat              │
+│  (SPA routing)    │          │  (Celery scheduler)          │
+└───────────────────┘          │                              │
+                               │  ventureiq-db                │
+                               │  (PostgreSQL 15)             │
+                               │                              │
+                               │  ventureiq-redis             │
+                               │  (Redis 7)                   │
+                               └──────────────────────────────┘
+```
+
+**`Procfile` content:**
+```
+web: gunicorn ventureiq.wsgi:application --bind 0.0.0.0:$PORT
+worker: celery -A ventureiq worker -l info -Q analysis,reports
+beat: celery -A ventureiq beat -l info --scheduler django_celery_beat.schedulers:DatabaseScheduler
+```
+
+**`render.yaml`** declares all services, environment variables references, and resource tiers as code — one file deploys the entire infrastructure.
+
+**`vercel.json`** rewrites all URL patterns to `index.html` so React Router handles navigation without 404 errors on page refresh.
+
+### Performance Targets
+- API response time: < 2 seconds at P95 under 100 concurrent users
+- Full analysis pipeline: completes within 120 seconds
+- Uptime target: 99.5% monthly
 
 ---
 
-### `backend/accounts/urls.py`
+---
 
-**What it is:** Maps URL paths to auth views. Mounted at `/api/v1/auth/`.
+## 13. FACULTY QUESTIONS & ANSWERS
 
+> This section covers the most likely questions a faculty examiner will ask, file by file and concept by concept.
+
+---
+
+### SECTION A — General Project Questions
+
+**Q1. What is VentureIQ and what problem does it solve?**
+
+VentureIQ is an AI/ML-powered web platform that evaluates startup ideas automatically. The problem is that early-stage founders (especially students) cannot afford consultants to validate their ideas. VentureIQ automates this using NLP and machine learning, giving them a full startup intelligence report in minutes instead of weeks.
+
+---
+
+**Q2. What is the overall architecture of your project?**
+
+It follows a 3-tier architecture:
+- **Presentation Layer** — React 18 SPA hosted on Vercel
+- **Application Layer** — Django REST Framework on Render, handling business logic and API
+- **Data Layer** — PostgreSQL for persistent data, Redis as message broker and cache
+
+There is also a 4th component: the Celery worker which processes the AI/ML pipeline asynchronously so the main web server stays responsive.
+
+---
+
+**Q3. Why did you choose Django over Node.js or Flask?**
+
+- Django has a built-in ORM, admin panel, migration system, and authentication framework — which saved development time
+- It integrates naturally with Python's ML libraries (scikit-learn, spaCy, pandas)
+- Django REST Framework provides serializers, authentication, and pagination out of the box
+- Flask would require building everything from scratch; Node.js would need a separate Python service for ML
+
+---
+
+**Q4. Why did you use React for the frontend?**
+
+- Component-based architecture enables code reuse (e.g., ScoreCard component used in 4 different pages)
+- React's virtual DOM efficiently updates only changed parts of the UI
+- Hooks and React Query simplify state management for async API calls
+- Large ecosystem of libraries (Recharts for charts, Headless UI for accessible components)
+
+---
+
+**Q5. How does a user flow through the system from start to finish?**
+
+1. User registers → JWT tokens issued
+2. User fills in startup idea submission form (multi-step)
+3. Form submits → Django API creates Idea record → dispatches Celery task
+4. User sees "Processing" status; they can continue using the app
+5. Background pipeline runs 18 stages → saves results to DB
+6. Status updates to "Complete", notification sent
+7. User opens Analysis tabs to see all 13 dimensions of results
+8. User can chat with AI Mentor, compare ideas, download PDF report
+
+---
+
+### SECTION B — Backend & Django Questions
+
+**Q6. Explain the `models.py` file in the `ideas` app.**
+
+The `Idea` model is the core entity. Key design decisions:
+- **UUID primary key** instead of integer — prevents guessing other users' idea IDs
+- **ForeignKey to CustomUser** — each idea belongs to one founder
+- **`analysis_status` field** — a state machine (pending → processing → complete/failed) that tracks pipeline progress
+- **Soft delete** via `is_deleted` boolean — data is never permanently lost
+- **`domain_data` JSONField** — stores industry-specific extra fields without schema migrations for each industry
+
+---
+
+**Q7. What is the purpose of `serializers.py` in Django REST Framework?**
+
+Serializers do two things:
+1. **Deserialization (Input validation):** When a POST request comes in with JSON, the serializer validates the data (required fields, data types, length limits, custom rules) before it reaches the view
+2. **Serialization (Output formatting):** When the view returns data, the serializer converts the Django model instance into JSON
+
+For example, `IdeaSerializer` validates that `startup_name` is present and under 200 characters, and that the `industry` ID actually exists in the database.
+
+---
+
+**Q8. What is Celery and why is it needed?**
+
+Celery is an asynchronous task queue. It's needed because the AI/ML analysis pipeline takes 30-120 seconds to complete. Without Celery:
+- The user would have to wait 2 minutes for the HTTP response — terrible UX
+- The web server would time out
+
+With Celery:
+- Django dispatches the task to a Redis queue and returns a response immediately
+- A separate Celery worker process picks up the task and runs it in the background
+- User sees "Processing" status, then gets notified when done
+
+---
+
+**Q9. What is JWT authentication and how is it implemented here?**
+
+JWT (JSON Web Token) is a stateless authentication mechanism. Instead of storing sessions in a database, the server issues a signed token that proves the user's identity.
+
+**Implementation:**
+- `djangorestframework-simplejwt` library handles token generation
+- Access token lives 60 minutes; refresh token lives 7 days
+- Every API request must include `Authorization: Bearer <token>` header
+- DRF's `JWTAuthentication` class automatically verifies the token
+- On logout, the refresh token's SHA-256 hash is stored in `accounts_refreshtoken.is_revoked=True`
+- Token rotation: using the refresh token issues a new pair and blacklists the old refresh token
+
+---
+
+**Q10. Explain the middleware stack in `settings/base.py`.**
+
+Middleware runs in order for every request/response:
+1. `SecurityMiddleware` — adds security headers (HSTS, X-Content-Type-Options)
+2. `CorsMiddleware` — checks if the request origin is in the allowed list
+3. `RateLimitMiddleware` — throttles requests to prevent abuse
+4. `LoginAttemptMiddleware` — blocks IPs that have failed login 5+ times
+5. `SessionMiddleware` → `CommonMiddleware` → `CsrfViewMiddleware` — standard Django
+6. `AuthenticationMiddleware` — identifies the current user from the JWT token
+7. `AuditLogMiddleware` — runs last so it can log the response status code too
+
+---
+
+**Q11. What is the `CustomUser` model and why not use Django's built-in User?**
+
+Django's built-in User uses **username** as the login identifier. We want **email** as the login field. Once you start a project, you cannot change this without resetting migrations. So we defined `CustomUser` early, extending `AbstractBaseUser`, with:
+- `email` as `USERNAME_FIELD`
+- UUID primary key instead of integer
+- Role field (founder/admin/mentor/student/incubation)
+- Soft-delete fields
+- Theme preference
+
+---
+
+**Q12. How does the password reset flow work?**
+
+1. User submits email to `POST /auth/password/forgot/`
+2. Backend finds the user (if they exist) — if not, silently does nothing
+3. `make_reset_token(user)` generates a cryptographically random token
+4. SHA-256 hash of the token is stored in `accounts_passwordresettoken`
+5. Raw token is embedded in the reset URL emailed to the user
+6. User clicks link → frontend sends token + new password to `POST /auth/password/reset/`
+7. Backend hashes the received token and looks it up in the DB
+8. If found and not used/expired → sets new password, marks token as `used=True`
+
+Security note: The endpoint always returns HTTP 200 whether the email exists or not (prevents attackers from enumerating registered emails).
+
+---
+
+**Q13. How do you prevent SQL injection?**
+
+Django's ORM uses parameterized queries exclusively. For example:
 ```python
-register/          → RegisterView
-login/             → LoginView
-logout/            → LogoutView
-token/refresh/     → TokenRefreshView
-password/forgot/   → ForgotPasswordView
-password/reset/    → ResetPasswordView
-password/change/   → ChangePasswordView
-profile/           → ProfileView
+# This is SAFE — Django parameterizes email value
+user = CustomUser.objects.get(email=request.data['email'])
+# SQL generated: SELECT * FROM accounts_user WHERE email = %s  [value bound separately]
 ```
+Raw SQL with `cursor.execute()` is never used with user input in this project.
 
 ---
 
-### `backend/accounts/middleware.py`
+### SECTION C — Machine Learning Questions
 
-**What it is:** Three custom middleware classes that run on every request:
+**Q14. What ML algorithm did you use and why?**
 
-- **`RateLimitMiddleware`** — limits requests per user/IP to prevent API abuse
-- **`LoginAttemptMiddleware`** — blocks IPs that have exceeded 5 failed login attempts
-- **`AuditLogMiddleware`** — automatically logs certain actions to `AuditLog`
+**GradientBoostingRegressor** from scikit-learn.
 
----
-
-### `backend/accounts/permissions.py`
-
-**What it is:** Custom DRF permission classes.
-
-- **`IsOwnerOrAdminOrMentor`** — allows access only if the user owns the resource, or has admin/mentor role
+Why:
+- Handles non-linear relationships in startup evaluation data
+- Ensemble method (combines hundreds of weak decision trees) → higher accuracy
+- More robust to outliers than linear regression
+- Has built-in feature importance — we can explain which features influenced the score
+- Better than Random Forest for structured tabular data with this size
 
 ---
 
-## 5. Backend — Ideas App
+**Q15. What features are fed into the ML models?**
 
+Features extracted from NLP preprocessing:
+- `keyword_count` — number of unique meaningful keywords
+- `description_length` — word count of the description
+- `tfidf_score` — Term Frequency-Inverse Document Frequency relevance score
+- `industry_code` — label-encoded industry category
+- `development_stage_code` — encoded (idea=0, validation=1, prototype=2, mvp=3, growth=4, scaling=5)
+- `team_size` — number of team members
+- `business_model_code` — encoded (SaaS, marketplace, subscription, etc.)
 
-### `backend/ideas/models.py`
+---
 
-**What it is:** Database tables for startup idea submissions.
+**Q16. What is TF-IDF and how is it used here?**
 
-**Models:**
+TF-IDF stands for **Term Frequency-Inverse Document Frequency**. It measures how important a word is to a document relative to a collection of documents.
 
-#### `StartupCategory`
-Lookup table of startup industries managed by admins.
-- Examples: FinTech, HealthTech, AI/ML, Agriculture, Cybersecurity
-- Fields: `name`, `slug`, `description`, `is_active`
+- **TF (Term Frequency):** How often a word appears in this specific description
+- **IDF (Inverse Document Frequency):** How rare the word is across all startup descriptions (rare = more meaningful)
 
-#### `Idea`
-The core entity — what a founder submits for AI analysis.
+In VentureIQ, TF-IDF is used in two ways:
+1. **Feature extraction** — top TF-IDF score for a description is fed as an ML feature
+2. **Competitor matching** — each competitor's description is vectorized with TF-IDF; cosine similarity against the idea's vector finds the most similar competitors
 
-| Field | Type | Purpose |
-|-------|------|---------|
-| `id` | UUID | Primary key |
-| `founder` | FK → CustomUser | Who submitted it |
-| `industry` | FK → StartupCategory | Which sector |
-| `startup_name` | CharField | Name of the startup |
-| `tagline` | CharField | One-liner description |
-| `description` | TextField | Full description |
-| `target_audience` | TextField | Who it's for |
-| `budget_range` | CharField | e.g. "10k-50k" |
-| `business_model` | CharField | e.g. "SaaS", "Marketplace" |
-| `development_stage` | CharField | idea / validation / prototype / mvp / growth / scaling |
-| `team_size` | Integer | Number of people |
-| `logo_url` | CharField | Uploaded logo file path |
-| `pitch_deck_url` | CharField | Uploaded PDF path |
-| `domain_data` | JSONField | Industry-specific extra data |
-| `analysis_status` | CharField | Pipeline progress tracker |
-| `is_deleted` | Boolean | Soft-delete flag |
+---
 
-**Analysis Status Flow:**
+**Q17. What is Cosine Similarity and how does competitor matching work?**
+
+Cosine similarity measures the angle between two vectors. If two startup descriptions have similar vocabulary, their TF-IDF vectors point in similar directions → high cosine similarity (0 to 1).
+
+Steps:
+1. Load 50+ competitor profiles from `competitors.json`
+2. Build a TF-IDF matrix for all competitor descriptions
+3. Convert the user's idea to a TF-IDF vector using the same vocabulary
+4. Compute cosine similarity: `similarity = (A · B) / (|A| × |B|)`
+5. Sort by similarity, return top-N competitors
+6. Classify competition: >0.6 = High, 0.3-0.6 = Medium, <0.3 = Low
+
+---
+
+**Q18. What is the fallback if ML models are not loaded?**
+
+The scoring modules check if `.pkl` files exist and are loadable. If not (e.g., files corrupted, server cold start), they fall back to **rule-based heuristic scoring**:
+- Long descriptions with many keywords → higher novelty score
+- Later development stage → higher practicality
+- Larger team size → lower team risk
+- Industry encoding → preset base market scores
+
+This ensures the pipeline never completely fails even without ML models.
+
+---
+
+**Q19. How were the ML models trained?**
+
+1. Created a synthetic dataset of startup evaluations with feature columns and target scores
+2. Split 80/20 train/test
+3. Trained one `GradientBoostingRegressor` per scoring dimension (12 models total)
+4. Used cross-validation (5-fold) to tune hyperparameters
+5. Evaluated with Mean Absolute Error (MAE) and R² score
+6. Serialized trained models with `joblib.dump()` to `.pkl` files
+7. At inference time, `joblib.load()` restores the model and calls `.predict(features)`
+
+---
+
+### SECTION D — Frontend Questions
+
+**Q20. What is React and how does routing work?**
+
+React is a JavaScript library for building UIs with reusable components. It uses a Virtual DOM — changes are computed in memory first, then only the actual differences are applied to the real DOM (efficient updates).
+
+**React Router v6** handles navigation:
+- `<BrowserRouter>` wraps the app
+- `<Routes>` + `<Route path="..." element={...}>` define the mapping
+- Clicking a link does NOT reload the page — React swaps the component
+- `<ProtectedRoute>` is a wrapper that redirects to `/login` if no valid JWT token exists
+
+---
+
+**Q21. What is React Query and why use it over plain useState?**
+
+React Query (`@tanstack/react-query`) manages **server state** — data that lives on the server and is fetched asynchronously. Without it, you'd need:
+```javascript
+const [data, setData] = useState(null);
+const [loading, setLoading] = useState(false);
+const [error, setError] = useState(null);
+// manually call useEffect, handle loading, error, refetch...
 ```
-pending → processing → classified → market_analyzed → scored → complete
-                                                             ↘ failed
+React Query replaces all that with:
+```javascript
+const { data, isLoading, error } = useQuery(['ideas'], fetchIdeas);
 ```
+It also provides automatic **caching** (don't re-fetch if data is fresh), **background refetching**, and **invalidation** (mark data stale after a mutation).
 
 ---
 
-### `backend/ideas/views.py`
+**Q22. How does the frontend handle authentication?**
 
-**What it is:** CRUD API for ideas, plus analysis triggers.
-
-| View | Method | URL | What it does |
-|------|--------|-----|-------------|
-| `IdeaListCreateView` | GET | `/api/v1/ideas/` | Paginated list of your ideas |
-| `IdeaListCreateView` | POST | `/api/v1/ideas/` | Submit new idea + trigger analysis |
-| `IdeaDetailView` | GET | `/api/v1/ideas/<id>/` | Full idea detail |
-| `IdeaDetailView` | PATCH | `/api/v1/ideas/<id>/` | Update idea fields |
-| `IdeaDetailView` | DELETE | `/api/v1/ideas/<id>/` | Soft-delete idea |
-| `IdeaStatusView` | GET | `/api/v1/ideas/<id>/status/` | Poll analysis progress |
-| `IdeaAnalysisView` | GET | `/api/v1/ideas/<id>/analysis/` | Full analysis bundle |
-| `IdeaReanalyzeView` | POST | `/api/v1/ideas/<id>/reanalyze/` | Reset and re-run analysis |
-
-**On POST (create idea):**
-1. Saves the idea to the database
-2. Appends submission data to the industry CSV file (for ML training)
-3. Calls `analyze_idea.delay(idea_id)` — queues the analysis as a Celery background task
-4. Writes an audit log entry
+1. On login, backend returns `{ access, refresh, user }`
+2. `AuthContext.jsx` stores the access token in memory and user object in state
+3. Axios interceptor in `axiosInstance.js` automatically attaches `Authorization: Bearer <token>` to every request
+4. When a 401 response is received, the interceptor silently calls `/token/refresh/` to get a new access token
+5. On logout, tokens are cleared from memory and the user is redirected to login
 
 ---
 
-### `backend/ideas/serializers.py`
+**Q23. Why was Tailwind CSS chosen over plain CSS or Bootstrap?**
 
-**What it is:** Validates idea data on create/update.
-
-- `IdeaCreateSerializer` — validates new idea submission fields
-- `IdeaUpdateSerializer` — validates partial update (blocks edit when analysis is complete)
-- `IdeaSerializer` — read-only representation for API responses
-- `IdeaStatusSerializer` — returns just the status field
+- **Utility-first** — style directly in JSX with class names like `bg-gray-900 text-white rounded-xl`
+- No context switching between `.css` files and `.jsx` files
+- Responsive design built-in: `md:flex lg:grid`
+- Dark mode built-in: `dark:bg-gray-800`
+- No unused CSS in production (PurgeCSS removes unused classes during build)
+- Bootstrap has opinionated pre-built components that are harder to customize for a premium UI
 
 ---
 
-### `backend/ideas/urls.py`
+### SECTION E — System Design & Advanced Questions
 
-**What it is:** URL patterns for the ideas app.
+**Q24. How does your system handle failure in the analysis pipeline?**
 
+The Celery task uses:
+```python
+@shared_task(bind=True, max_retries=3)
+def run_analysis_pipeline(self, idea_id):
+    try:
+        # pipeline stages...
+    except Exception as exc:
+        raise self.retry(exc=exc, countdown=10 * (2 ** self.request.retries))
+        # Retry after: 10s, 20s, 40s
 ```
-GET/POST  ideas/                    → IdeaListCreateView
-GET/PATCH/DELETE  ideas/<uuid:pk>/  → IdeaDetailView
-GET  ideas/<uuid:pk>/status/        → IdeaStatusView
-GET  ideas/<uuid:pk>/analysis/      → IdeaAnalysisView
-POST ideas/<uuid:pk>/reanalyze/     → IdeaReanalyzeView
-```
+After 3 failures:
+- `idea.analysis_status = "failed"`
+- An AuditLog entry is created with the error details
+- A failure notification is sent to the founder
 
 ---
 
-## 6. Backend — Analysis App
+**Q25. How does your app scale?**
 
+The architecture is **stateless** — the Django web server doesn't store any session data locally. This means:
+- Multiple Django instances can run behind a load balancer (horizontal scaling)
+- Redis handles shared state (cached results, Celery broker)
+- PostgreSQL handles persistent state
+- Render allows increasing the instance count with one configuration change
 
-### `backend/analysis/models.py`
-
-**What it is:** All AI analysis result tables. Every model links back to one `Idea` via a foreign key.
-
-**Models:**
-
-#### `NLPOutput` (1:1 per Idea)
-Natural language processing results.
-- `tokens` — list of processed word tokens
-- `keywords` — keywords with relevance scores `[{word, score}]`
-- `keyword_vector` — float array for similarity matching
-- `industry_label` — detected industry (e.g. "HealthTech")
-- `industry_confidence` — confidence score 0.0–1.0
-- `technology_labels` — up to 3 detected technology tags
-- `similar_startups` — similar companies found `[{name, similarity, source}]`
-- `quality_warning` — True if idea description is too short/vague
-
-#### `InnovationScore` (1:1 per Idea)
-5-dimension innovation scoring, all values 0–100.
-
-| Dimension | What it measures |
-|-----------|-----------------|
-| `novelty` | How new/unique is the idea |
-| `practicality` | How feasible to implement |
-| `scalability` | Can it grow large |
-| `business_value` | Commercial potential |
-| `technology_adoption` | Ease of adoption |
-| `composite_score` | Weighted average of all 5 |
-
-Also stores `explanations` (text rationale per dimension) and `confidence_intervals`.
-
-#### `MarketIntelligence` (1:1 per Idea)
-- `market_opportunity_score` — 0–100
-- `competition_level` — low / medium / high
-- `demand_analysis` — text description of market demand
-- `growth_potential` — low / moderate / high / very_high
-
-#### `RiskAssessment` (1:1 per Idea)
-Six risk scores, all 0–100:
-- `financial_risk`, `technical_risk`, `operational_risk`
-- `market_risk`, `legal_risk`, `overall_risk_score`
-- `rationales` — JSON object with text explanation per risk
-- `mitigation_recs` — list of risk mitigation recommendations
-
-#### `SWOTAnalysis` (1:1 per Idea)
-- `strengths`, `weaknesses`, `opportunities`, `threats` — each a JSON list
-- Minimum 3 items required per field (validated in `clean()`)
-- `is_customized` — True if the user edited the AI-generated SWOT
-
-#### `Recommendation` (1:1 per Idea)
-- `revenue_model` — subscription / freemium / marketplace / commission / licensing / advertising
-- `marketing_tactics` — list of marketing strategies
-- `acquisition_channels` — list of customer acquisition channels
-- `improvement_suggestions` — list of suggestions to improve the idea
-
-#### `CustomerPersona` (Many per Idea)
-Multiple buyer personas. Each has:
-- `age_range`, `occupation`, `income_range`, `location`
-- `pain_points` — list of problems this persona faces
-- `buying_behaviour` — text description
-
-#### `BusinessModelCanvas` (1:1 per Idea)
-9 standard BMC sections, each stored as a JSON list:
-- Customer Segments, Value Proposition, Channels
-- Customer Relationships, Revenue Streams, Key Activities
-- Key Resources, Key Partners, Cost Structure
-- `is_customized` — True if user edited it
-
-#### `CompetitorResult` (Many per Idea)
-One record per competitor found.
-- `competitor_name`, `similarity_score` (0–1)
-- `strengths`, `weaknesses` — JSON lists
-- `competition_level` — low / medium / high
-- `sort_order` — display order
-
-#### `RoadmapPlan` (1:1 per Idea)
-- `phases` — JSON array of phases, each with `start_month`, `end_month`, and `milestones`
-
-#### `TeamRecommendation` (1:1 per Idea)
-- `roles` — JSON list of `{role, priority, justification}`
-
-#### `InvestorReadiness` (1:1 per Idea)
-- `readiness_score` — 0–100
-- `readiness_band` — not_ready / developing / ready
-- `missing_requirements` — what's needed before investor approach
-- `investment_suggestions` — specific actions to improve readiness
-
-#### `IdeaComparison` (Many per User)
-Side-by-side comparison of two ideas.
-- `idea_a`, `idea_b` — must be different ideas
-- `dimension_scores` — JSON comparison per scoring dimension
-- `summary_text` — AI-generated comparison text
-- `recommendation` — idea_a / idea_b / equal
+Celery workers can also be scaled independently of web workers — during peak analysis load, add more Celery worker instances.
 
 ---
 
-### `backend/analysis/tasks.py`
+**Q26. What is soft delete and why use it?**
 
-**What it is:** Celery background tasks that run the full analysis pipeline.
+Instead of `DELETE FROM ideas_idea WHERE id = ?`, we set `is_deleted = True`.
 
-**Main task — `analyze_idea(idea_id)`:**
-1. Sets `analysis_status = processing`
-2. Runs NLP (tokenization, keyword extraction, industry classification)
-3. Runs scoring (innovation score calculation)
-4. Runs market intelligence analysis
-5. Runs risk assessment
-6. Generates SWOT, recommendations, competitor results, personas, BMC
-7. Sets `analysis_status = complete`
-8. On any error → sets `analysis_status = failed`
+Benefits:
+- Data is preserved for auditing and compliance
+- Accidental deletes can be recovered
+- Foreign key integrity maintained (no orphan records)
+- Audit log always has full history
+
+All queries filter with `.filter(is_deleted=False)` so deleted records are invisible to users.
 
 ---
 
-### `backend/analysis/urls.py` and `backend/analysis/comparison_urls.py`
+**Q27. How does the notification system work?**
 
-**What they are:** URL patterns for fetching analysis results and running comparisons.
+1. When the Celery pipeline completes (or fails), it creates a `Notification` record in the database with the `founder` FK and message
+2. When the frontend loads, it fetches `GET /api/v1/notifications/` via React Query
+3. The `NotificationPanel` component shows a badge count with unread notifications
+4. Clicking a notification marks it as `is_read = True`
 
----
-
-## 7. Backend — Other Apps
-
-
-### `backend/scoring/models.py`
-
-**What it is:** Stores admin-configurable scoring weights.
-
-**`ScoreWeightConfig` model:**
-- 5 weight fields: `novelty_weight`, `practicality_weight`, `scalability_weight`, `business_value_weight`, `tech_adoption_weight`
-- Default: 0.200 each (equal weighting)
-- Validation: all 5 weights **must sum to exactly 1.000** (enforced in `save()`)
-- `is_active` — only one config should be active at a time
-- `updated_by` — FK to the admin who last changed it
+Currently it's a polling mechanism — React Query re-fetches on window focus. WebSocket real-time push is a future enhancement.
 
 ---
 
-### `backend/mentor_chat/models.py`
+**Q28. What testing strategy did you use?**
 
-**What it is:** Database tables for the AI mentor chat feature.
+- **Backend:** `pytest` with `pytest-django` plugin
+  - Unit tests for models, serializers, scoring modules
+  - Integration tests for API endpoints (using Django test client)
+  - Property-based testing with `hypothesis` for edge cases in scoring logic
+  - Test coverage tracked with `pytest-cov`
+  - `factory-boy` for generating realistic test data without fixtures
 
-**`ChatSession` model:**
-- `user` — who started the chat
-- `idea` — optionally linked to a specific idea (for context-aware answers)
-- `title` — auto-generated or user-set session name
-
-**`ChatMessage` model:**
-- `session` — which conversation it belongs to
-- `role` — `user` or `assistant`
-- `content` — the message text
-- `created_at` — timestamp (used to sort messages in order)
+- **Frontend:** No automated tests (manual testing via browser dev tools and Postman for API)
 
 ---
 
-### `backend/reports/models.py`
+**Q29. What is the purpose of `render.yaml`?**
 
-**What it is:** Tables for generated documents.
+It's **Infrastructure-as-Code** — a single YAML file that declares all Render cloud resources:
+- Web service (Django + Gunicorn)
+- Worker service (Celery)
+- Beat service (Celery scheduler)
+- PostgreSQL database
+- Redis instance
 
-**`Report` model:**
-- PDF analysis report for an idea
-- `status`: `generating → complete / failed`
-- `file_url` — where the PDF is stored after generation
-
-**`PitchDeck` model:**
-- Structured pitch deck with 8 sections stored as JSON:
-  - problem, solution, market_opportunity, business_model
-  - competitors, revenue_model, roadmap, funding_requirement
-- `is_customized` — True if user edited the AI-generated content
-- `file_url` — exported PDF path
+Instead of clicking through Render's UI for every deployment, everything is version-controlled and reproducible.
 
 ---
 
-### `backend/analytics/`
+**Q30. What is `vercel.json` and why is it needed?**
 
-**What it is:** Provides platform-wide statistics for admins and mentors.
+For a React SPA, all routes like `/dashboard`, `/ideas/123` are handled by React Router — not by a web server. When a user directly types `ventureiq.vercel.app/dashboard` in the browser, Vercel would return 404 because that file doesn't exist.
 
-- Total ideas submitted, ideas by status, ideas by industry
-- User registration trends
-- Analysis completion rates
-- Exposed at `/api/v1/analytics/`
-
----
-
-### `backend/notifications/`
-
-**What it is:** User notification system.
-
-- Creates notifications when analysis completes, reports are ready, etc.
-- Exposed at `/api/v1/notifications/`
-- Admin can broadcast notifications via admin panel
-
----
-
-### `backend/admin_panel/`
-
-**What it is:** Admin-only management APIs, separate from Django's built-in admin.
-
-- Manage users (view, activate/deactivate, change roles)
-- Manage startup categories
-- Configure score weights
-- View audit logs
-- Manage ML models
-- Send notifications
-- Exposed at `/api/v1/admin-panel/`
-
----
-
-### `backend/nlp_engine/`
-
-**What it is:** Core NLP processing logic.
-
-- Text tokenization and cleaning
-- Keyword extraction using TF-IDF
-- Industry classification using trained ML model
-- Similar startup detection using cosine similarity
-- Used internally by the `analysis` app tasks
-
----
-
-### `backend/ml_pipeline/`
-
-**What it is:** Machine learning model training pipeline.
-
-- Scripts to retrain the industry classifier on new data
-- Loads CSV data from `ml_models/data/raw/by-industry/`
-- New idea submissions are automatically appended to these CSVs
-
----
-
-## 7a. Backend — ml_models Folder (Detailed)
-
-The `ml_models/` folder is the heart of VentureIQ's AI intelligence. It contains all the trained machine learning models, the data used to train them, and the scripts to retrain them.
-
-```
-ml_models/
-├── pipeline.py                  ← Master orchestration script
-├── train_models.py              ← Training script (original)
-├── train_models_real.py         ← Training script (real Kaggle data)
-├── validate_models.py           ← Validates all trained models
-├── features.py                  ← Feature extraction for inference
-├── features_real.py             ← Feature extraction (real data version)
-├── generate_dataset.py          ← Generates synthetic training data
-├── build_competitor_corpus.py   ← Builds competitor lookup JSON
-├── rebuild_training_arrays.py   ← Rebuilds NumPy training arrays
-├── diagnose.py                  ← Debug/diagnostics tool
-├── test_pipeline.py             ← End-to-end integration test
-├── test_different_ideas.py      ← Tests model on sample ideas
-├── verify_downloads.py          ← Checks Kaggle downloads are complete
-│
-├── data/
-│   ├── competitor_corpus.json   ← Built competitor database (runtime lookup)
-│   ├── raw/
-│   │   ├── by-industry/         ← One CSV per industry (live + training data)
-│   │   │   ├── Agriculture.csv
-│   │   │   ├── AI_ML.csv
-│   │   │   ├── Cybersecurity.csv
-│   │   │   ├── FoodTech.csv
-│   │   │   ├── Healthcare.csv
-│   │   │   ├── Social_Media.csv
-│   │   │   ├── Technology.csv
-│   │   │   └── TravelTech.csv
-│   │   └── news-category/       ← News articles for industry classifier
-│   └── processed/
-│       ├── startup_success.csv
-│       ├── bankruptcy_risk.csv
-│       ├── crunchbase_features.csv
-│       ├── indian_funding.csv
-│       ├── industry_text_classification.csv
-│       ├── unicorn_features.csv
-│       ├── training_arrays/     ← NumPy .npy arrays for fast training
-│       └── artifacts/           ← Saved vectorizers and label maps
-│
-├── trained/                     ← All trained model files (.pkl)
-│   ├── novelty.pkl
-│   ├── practicality.pkl
-│   ├── scalability.pkl
-│   ├── business_value.pkl
-│   ├── technology_adoption.pkl
-│   ├── market_opportunity_score.pkl
-│   ├── financial_risk.pkl
-│   ├── technical_risk.pkl
-│   ├── operational_risk.pkl
-│   ├── market_risk.pkl
-│   ├── legal_risk.pkl
-│   ├── investor_readiness.pkl
-│   ├── industry_classifier.pkl  ← LogisticRegression text classifier
-│   ├── tfidf_vectorizer.pkl     ← TF-IDF vectorizer for text
-│   └── industry_label_map.pkl   ← Label ID → industry name mapping
-│
-├── preprocess/                  ← Data cleaning scripts
-│   ├── run_all.py               ← Runs all preprocessors
-│   ├── startup_success.py       ← Cleans startup success dataset
-│   ├── bankruptcy.py            ← Cleans bankruptcy/risk dataset
-│   ├── crunchbase.py            ← Cleans Crunchbase funding data
-│   ├── indian_funding.py        ← Cleans Indian startup funding data
-│   ├── news_category.py         ← Cleans news articles for classifier
-│   └── unicorn_startups.py      ← Cleans unicorn valuation data
-│
-└── feature_engineering/         ← Feature extraction for training
-    ├── build_all.py             ← Runs all feature builders
-    ├── innovation_features.py   ← Features for novelty/scalability/etc.
-    ├── market_features.py       ← Features for market opportunity
-    ├── risk_features.py         ← Features for financial/market/tech risk
-    ├── investor_features.py     ← Features for investor readiness
-    └── industry_classifier_features.py ← TF-IDF text features
-```
-
----
-
-### Trained Models — `ml_models/trained/`
-
-There are **15 trained model files** (`.pkl` = Python pickle, a serialized trained model):
-
-**Innovation Scoring Models** (each predicts a score 0–100):
-
-| File | What it predicts | Data source | Algorithm | R² score |
-|------|-----------------|-------------|-----------|----------|
-| `novelty.pkl` | How unique/new the idea is | Crunchbase (48K startups) | GradientBoosting | 0.72 |
-| `practicality.pkl` | How feasible to build | Crunchbase | GradientBoosting | 0.87 |
-| `scalability.pkl` | How much it can grow | Crunchbase | GradientBoosting | 1.00 |
-| `business_value.pkl` | Commercial potential | Crunchbase | GradientBoosting | 0.96 |
-| `technology_adoption.pkl` | Ease of tech adoption | Crunchbase | GradientBoosting | 1.00 |
-
-**Market Model:**
-
-| File | What it predicts | Data source | Algorithm | R² score |
-|------|-----------------|-------------|-----------|----------|
-| `market_opportunity_score.pkl` | Market size & timing | Crunchbase | GradientBoosting | 0.97 |
-
-**Risk Models** (each predicts a risk score 0–100):
-
-| File | What it predicts | Data source | Algorithm | R² score |
-|------|-----------------|-------------|-----------|----------|
-| `financial_risk.pkl` | Financial risk | Bankruptcy dataset (6.8K) | GradientBoosting | 0.95 |
-| `technical_risk.pkl` | Technical risk | Bankruptcy dataset | GradientBoosting | 0.95 |
-| `operational_risk.pkl` | Operational risk | Bankruptcy dataset | GradientBoosting | 0.95 |
-| `market_risk.pkl` | Market risk | Bankruptcy dataset | GradientBoosting | 0.94 |
-| `legal_risk.pkl` | Legal/compliance risk | Bankruptcy dataset | GradientBoosting | 0.87 |
-
-**Other Models:**
-
-| File | What it predicts | Data source | Algorithm | Performance |
-|------|-----------------|-------------|-----------|-------------|
-| `investor_readiness.pkl` | Investor-readiness score | Crunchbase | GradientBoosting | R²=0.97 |
-| `industry_classifier.pkl` | Which industry the idea belongs to | News articles (50K) | LogisticRegression | Acc=70% |
-| `tfidf_vectorizer.pkl` | Converts text to numbers for classifier | — | TF-IDF | — |
-| `industry_label_map.pkl` | Maps label IDs to industry names | — | — | — |
-
-> **R² score** = how well the model explains variance (1.0 = perfect, 0 = no better than average). **MAE** threshold ≤ 18 points is required for passing validation.
-
----
-
-### `pipeline.py`
-
-**What it is:** Master orchestration script that runs the entire ML training pipeline end-to-end.
-
-**5 steps it runs:**
-1. **Download** — downloads 6 Kaggle datasets (needs `KAGGLE_API_TOKEN`)
-2. **Preprocess** — cleans raw CSV data → `data/processed/`
-3. **Features** — extracts numeric features → `data/processed/training_arrays/`
-4. **Train** — trains all 13 models → saves `.pkl` to `trained/`
-5. **Validate** — checks all models meet R² ≥ 0.25, MAE ≤ 18 thresholds
-
-**How to run:**
-```bash
-# Full pipeline (downloads Kaggle data):
-python -m ml_models.pipeline --full
-
-# Skip download (use existing data):
-python -m ml_models.pipeline
-
-# Run one step only:
-python -m ml_models.pipeline --step train
-python -m ml_models.pipeline --step validate
-```
-
----
-
-### `train_models.py`
-
-**What it is:** Trains all 12 regression models using `GradientBoostingRegressor`.
-
-**What it does:**
-- Loads `training_data.json` (or generates it if missing)
-- For each of 12 target dimensions: splits data 80/20, fits a GradientBoostingRegressor with 100 estimators
-- Evaluates with MAE and R² on the test split
-- Saves each trained model as `trained/<target_name>.pkl`
-
-**Models trained:** novelty, practicality, scalability, business_value, technology_adoption, market_opportunity_score, financial_risk, technical_risk, operational_risk, market_risk, legal_risk, investor_readiness
-
----
-
-### `validate_models.py`
-
-**What it is:** Quality gate that checks all trained models meet minimum performance thresholds before they are used in production.
-
-**Thresholds:**
-- Regression models: R² ≥ 0.25, MAE ≤ 18.0
-- Industry classifier: Accuracy ≥ 65%
-
-**What it checks:**
-1. `.pkl` file exists for every model
-2. Model loads without errors
-3. Model can make predictions
-4. Performance metrics meet thresholds
-
-**Exit codes:** `0` = all passed, `1` = one or more failed
-
----
-
-### `features.py`
-
-**What it is:** Converts a submitted idea into a fixed-size numeric feature vector used by all scoring models at inference (prediction) time.
-
-**Features extracted (23 total):**
-
-| Feature | Source | Description |
-|---------|--------|-------------|
-| `description_length` | Idea text | Character count |
-| `word_count` | Idea text | Word count |
-| `no_quality_warning` | NLP output | 1 if description is good quality |
-| `industry_confidence` | NLP output | How confident the classifier is |
-| `n_tech_labels` | NLP output | Number of tech tags detected |
-| `has_ai_ml` | NLP output | 1 if AI/ML detected in idea |
-| `n_keywords` | NLP output | Number of extracted keywords |
-| `avg_keyword_score` | NLP output | Average relevance of keywords |
-| `n_similar_startups` | NLP output | Similar companies found |
-| `max_similarity_score` | NLP output | Highest similarity score found |
-| `team_size` | Idea metadata | Number of team members |
-| `dev_stage_norm` | Idea metadata | Stage encoded 0–1 (idea=0, scaling=1) |
-| `business_model_norm` | Idea metadata | Business model encoded 0–1 |
-| `has_pitch_deck` | Idea metadata | 1 if pitch deck was uploaded |
-| `industry_*` (9 cols) | NLP output | One-hot encoding for each industry |
-
----
-
-### `build_competitor_corpus.py`
-
-**What it is:** Builds the `data/competitor_corpus.json` file used at runtime by the competitor analyzer.
-
-**What it does:**
-- Reads all 8 by-industry CSVs
-- Filters to active and acquired companies only
-- Selects top 10 companies per industry (by investor score)
-- For each company generates:
-  - A 20-dimension keyword vector (for similarity matching)
-  - Derived `strengths` (based on funding, stage, business model)
-  - Derived `weaknesses` (based on risk, status, industry)
-- Saves everything to `competitor_corpus.json`
-
-**When to re-run:** After adding new companies to the by-industry CSVs.
-```bash
-python -m ml_models.build_competitor_corpus
-```
-
----
-
-### `data/raw/by-industry/` CSVs
-
-**What they are:** 8 CSV files, one per supported industry. These serve two purposes:
-
-1. **Training data** — used to train and retrain ML models
-2. **Competitor database** — used at runtime to find similar companies
-
-| File | Industry |
-|------|----------|
-| `Agriculture.csv` | AgriTech startups |
-| `AI_ML.csv` | Artificial Intelligence / Machine Learning |
-| `Cybersecurity.csv` | Cybersecurity companies |
-| `FoodTech.csv` | Food technology |
-| `Healthcare.csv` | HealthTech startups |
-| `Social_Media.csv` | Social media platforms |
-| `Technology.csv` | General technology |
-| `TravelTech.csv` | Travel technology |
-
-**Live data feed:** Every time a user submits a new idea via the platform, a row is automatically appended to the matching CSV (done in `ideas/views.py → _append_to_industry_csv()`). This means the training data grows over time.
-
----
-
-### `data/processed/` Files
-
-Cleaned and feature-engineered versions of the raw Kaggle datasets, ready for model training.
-
-| File | Source | Records | Used for |
-|------|--------|---------|---------|
-| `startup_success.csv` | Kaggle: Startup Success | 923 | Success/failure patterns |
-| `bankruptcy_risk.csv` | Kaggle: Bankruptcy Prediction | 6,819 | Risk scoring (95 financial ratios) |
-| `crunchbase_features.csv` | Kaggle: Crunchbase | 54,294 | Market, innovation, investor readiness |
-| `indian_funding.csv` | Kaggle: Indian Startup Funding | 3,044 | Industry + funding patterns |
-| `industry_text_classification.csv` | Kaggle: News Category | 50,000 | Industry text classifier training |
-| `unicorn_features.csv` | Kaggle: Unicorn Startups | 1,186 | Valuation benchmarks |
-
----
-
-### `data/competitor_corpus.json`
-
-**What it is:** A pre-built JSON database of Indian startups used at runtime by the competitor analyzer. Generated by `build_competitor_corpus.py`.
-
-**Structure:**
+`vercel.json` has a rewrite rule:
 ```json
-[
-  {
-    "name": "Ola",
-    "vector": [0.1234, 0.5678, ...],  // 20-dim keyword vector
-    "metadata": {
-      "category": "TravelTech",
-      "city": "Bangalore",
-      "stage": "scaling",
-      "funding_inr": 5000000000,
-      "strengths": ["Strong funding base", "Proven traction"],
-      "weaknesses": ["High capital dependency"]
-    }
-  }
-]
+{ "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }] }
 ```
-
-When a user submits a new idea, the competitor analyzer computes cosine similarity between the idea's keyword vector and every entry in this corpus, returning the top matches.
-
----
-
-### `preprocess/` Scripts
-
-These scripts clean the raw Kaggle CSV files into consistent formats for feature engineering.
-
-| File | What it cleans |
-|------|---------------|
-| `startup_success.py` | Startup success/failure dataset — encodes categorical fields, handles missing values |
-| `bankruptcy.py` | Company bankruptcy data — normalizes 95 financial ratios |
-| `crunchbase.py` | Crunchbase investments — extracts funding amounts, categories, stages |
-| `indian_funding.py` | Indian startup funding — extracts INR amounts, industry mappings |
-| `news_category.py` | News articles — filters to tech/business categories, maps to VentureIQ industries |
-| `unicorn_startups.py` | Unicorn data — extracts valuation, country, industry |
-| `run_all.py` | Runs all preprocessors above in sequence |
+This tells Vercel: for any URL, serve `index.html`. React Router then reads the URL and renders the correct page.
 
 ---
 
-### `feature_engineering/` Scripts
+**Q31. What is the `.env` file and why is it never committed to Git?**
 
-These scripts take the cleaned data and create numeric feature arrays ready for scikit-learn model training.
+`.env` contains sensitive configuration:
+- `SECRET_KEY` — Django's cryptographic signing key
+- `DB_PASSWORD` — Database password
+- `GEMINI_API_KEY` — Third-party API key (paid service)
+- `JWT_SECRET` — JWT signing secret
 
-| File | Features it builds |
-|------|-------------------|
-| `innovation_features.py` | Features for novelty, practicality, scalability, business_value, technology_adoption |
-| `market_features.py` | Features for market_opportunity_score |
-| `risk_features.py` | Features for all 5 risk dimensions (uses 95 bankruptcy financial ratios) |
-| `investor_features.py` | Features for investor_readiness |
-| `industry_classifier_features.py` | TF-IDF text features for industry classification |
-| `build_all.py` | Runs all feature builders and saves `.npy` arrays to `training_arrays/` |
+If these were committed to GitHub, anyone could:
+- Forge authentication tokens
+- Access/destroy the database
+- Run up API costs on Gemini
 
----
-
-### How the ML Models Are Used at Runtime
-
-When a user submits an idea, this is what happens behind the scenes:
-
-```
-Idea submitted
-    ↓
-analyze_idea.delay() — Celery background task starts
-    ↓
-nlp_engine/engine.py
-  → tfidf_vectorizer.pkl + industry_classifier.pkl
-  → predicts industry label (e.g. "HealthTech")
-  → extracts keywords, finds similar startups from corpus
-    ↓
-features.py → extract_features()
-  → builds a 23-element numeric vector from the idea
-    ↓
-scoring/innovation.py
-  → novelty.pkl, practicality.pkl, scalability.pkl,
-    business_value.pkl, technology_adoption.pkl
-  → predicts 5 scores → calculates composite_score
-    ↓
-scoring/market.py
-  → market_opportunity_score.pkl → predicts market score
-    ↓
-scoring/risk.py
-  → financial_risk.pkl, technical_risk.pkl, operational_risk.pkl,
-    market_risk.pkl, legal_risk.pkl → predicts 5 risk scores
-    ↓
-scoring/investor_readiness.py
-  → investor_readiness.pkl → predicts readiness score
-    ↓
-All results saved to analysis models in the database
-Idea.analysis_status = "complete"
-```
-
-> **Fallback:** All scoring engines have rule-based fallback logic. If a `.pkl` file fails to load, the engine computes scores using weighted formulas instead of the ML model — so the app never crashes even if models are missing.
+`.gitignore` excludes `.env`. `.env.example` (no real values) is committed as a template.
 
 ---
 
-### `backend/competitor/`
+**Q32. What is Gunicorn and why is it used in production instead of Django's built-in server?**
 
-**What it is:** Competitor analysis logic.
+Django's `python manage.py runserver` is a single-threaded development server — one request at a time. It's also not hardened for production.
 
-- Searches for similar companies based on idea description and industry
-- Calculates similarity scores
-- Returns top N competitors with strengths/weaknesses
-- Results stored in `CompetitorResult` model
-
----
-
-### `backend/generators/`
-
-**What it is:** AI content generators.
-
-- Generates SWOT analysis text
-- Generates Business Model Canvas sections
-- Generates pitch deck content
-- Uses Gemini or Groq (Llama 3) AI APIs
+**Gunicorn** (Green Unicorn) is a production WSGI server that:
+- Spawns multiple worker processes to handle concurrent requests
+- Handles worker crashes gracefully (restarts failed workers)
+- Integrates with Nginx/load balancers
+- Is used by virtually all production Python deployments
 
 ---
 
-## 8. Frontend — Entry Point & Config
+**Q33. Why are there separate settings files (base.py, dev.py, prod.py)?**
 
+**DRY principle + Security separation:**
+- `base.py` — settings shared in all environments (installed apps, DRF config, JWT config)
+- `dev.py` — development-specific: `DEBUG=True`, console email backend, relaxed CORS
+- `prod.py` — production-specific: `DEBUG=False`, HTTPS enforcement, HSTS, strict CORS, S3 media storage
 
-### `frontend/package.json`
-
-**What it is:** Defines the project name, scripts, and all JavaScript dependencies.
-
-**Key dependencies:**
-
-| Package | Version | Purpose |
-|---------|---------|---------|
-| `react` | 18.3.1 | UI component framework |
-| `react-dom` | 18.3.1 | Renders React to the browser |
-| `react-router-dom` | 6.30.1 | Client-side page routing |
-| `@tanstack/react-query` | 5.83.0 | Server state, caching, API calls |
-| `axios` | 1.9.0 | HTTP client for API requests |
-| `recharts` | 2.15.3 | Charts and graphs |
-| `@headlessui/react` | 2.2.4 | Accessible UI components (modals, etc.) |
-| `tailwindcss` | 3.4.17 | Utility-first CSS framework |
-| `vite` | 6.3.5 | Build tool and dev server |
-
-**Scripts:**
-```bash
-npm run dev      # Start development server (localhost:5173)
-npm run build    # Build for production (outputs to dist/)
-npm run preview  # Preview the production build locally
-```
+`DJANGO_SETTINGS_MODULE` env variable selects which file to use:
+- `ventureiq.settings.dev` locally
+- `ventureiq.settings.prod` on Render
 
 ---
 
-### `frontend/vite.config.js`
+**Q34. What is the Business Model Canvas and how is it generated?**
 
-**What it is:** Configuration for Vite (the build tool). Sets up the React plugin and optionally configures the dev proxy to forward API calls to the Django backend.
+The Business Model Canvas is a strategic framework with 9 blocks:
+1. Key Partners, 2. Key Activities, 3. Key Resources
+4. Value Propositions, 5. Customer Relationships, 6. Channels
+7. Customer Segments, 8. Cost Structure, 9. Revenue Streams
 
----
-
-### `frontend/tailwind.config.js`
-
-**What it is:** Tailwind CSS configuration. Tells Tailwind which files to scan for class names so unused CSS is removed in the production build.
-
----
-
-### `frontend/index.html`
-
-**What it is:** The single HTML file that the browser loads. Contains one `<div id="root">` where the entire React app is injected. All other pages are rendered by React — the server only ever serves this one HTML file.
+In VentureIQ, `generators/canvas.py` uses the idea's industry, business model type, NLP keywords, and scoring results to populate each block with relevant text. For example, a FinTech SaaS startup would get "Banks and NBFCs" as a Key Partner suggestion.
 
 ---
 
-### `frontend/src/main.jsx`
+**Q35. What are the most important non-functional requirements of this project?**
 
-**What it is:** The JavaScript entry point for the app. Bootstraps everything.
-
-**What it sets up:**
-- `BrowserRouter` — enables URL-based navigation
-- `QueryClientProvider` — React Query with 5-minute cache and 1 retry on failure
-- `AuthProvider` — global authentication state (current user, login/logout)
-- `ErrorBoundary` — catches any React crashes and shows a friendly error with a "Try Again" button
-
----
-
-### `frontend/src/App.jsx`
-
-**What it is:** Defines all URL routes and which component renders at each path.
-
-**Public routes** (no login needed):
-
-| Path | Component |
-|------|-----------|
-| `/` | `LandingPage` |
-| `/login` | `LoginPage` |
-| `/register` | `RegisterPage` |
-| `/forgot-password` | `ForgotPasswordPage` |
-| `/reset-password/:token` | `ResetPasswordPage` |
-
-**Protected routes** (require login via `AuthGuard`):
-
-| Path | Component |
-|------|-----------|
-| `/dashboard` | `DashboardPage` |
-| `/ideas` | `IdeaListPage` |
-| `/ideas/new` | `IdeaSubmissionPage` |
-| `/ideas/:id` | `IdeaDetailPage` |
-| `/ideas/:id/analysis/*` | `AnalysisTabsPage` (with nested tabs) |
-| `/compare` | `ComparisonPage` |
-| `/reports` | `ReportsPage` |
-| `/pitch-decks/:id` | `PitchDeckEditorPage` |
-| `/mentor` | `MentorChatPage` |
-| `/analytics` | `AnalyticsDashboardPage` (admin/mentor only) |
-| `/admin/*` | `AdminPanelPage` (admin only) |
-| `/profile` | `ProfilePage` |
-| `/submission-history` | `SubmissionHistoryPage` |
+| Requirement | Implementation |
+|------------|---------------|
+| Performance: API < 2s | Connection pooling (`CONN_MAX_AGE`), indexed DB columns, React Query caching |
+| Security: No plaintext passwords | bcrypt hashing via Django's AbstractBaseUser |
+| Security: No SQL injection | Django ORM parameterized queries only |
+| Availability: 99.5% uptime | Deployed on Render with health checks, Gunicorn multi-worker |
+| Scalability | Stateless Django + Celery + Redis = horizontal scale |
+| Data Integrity | UUID PKs, soft-delete, FK constraints, CHECK constraints on score columns |
+| Auditability | AuditLog table records every auth event and admin action |
 
 ---
 
-### `frontend/src/context/AuthContext.jsx`
+### SECTION F — Quick-Fire Technical Questions
 
-**What it is:** React Context that stores and provides the current user's authentication state to the entire app.
+**Q36. What is the difference between `access_token` and `refresh_token`?**
+- Access token: Short-lived (60 min), sent with every API request in Authorization header
+- Refresh token: Long-lived (7 days), only used to get a new access token when it expires
 
-- Stores: `currentUser`, `accessToken`, `refreshToken`
-- Provides: `login()`, `logout()`, `register()` functions
-- On app load: reads token from `localStorage` to keep users logged in after refresh
-- On 401 response: automatically attempts token refresh; logs out if refresh fails
+**Q37. What does `on_delete=models.CASCADE` mean?**
+When the parent record (e.g., User) is deleted, all related child records (e.g., their Ideas) are automatically deleted too.
 
----
+**Q38. What is `related_name` in a ForeignKey?**
+It creates a reverse accessor. `founder = ForeignKey(User, related_name="ideas")` lets you write `user.ideas.all()` instead of `Idea.objects.filter(founder=user)`.
 
-### `frontend/src/api/`
+**Q39. What is the difference between `blank=True` and `null=True`?**
+- `null=True` — allows NULL value in the database column
+- `blank=True` — allows empty string in form/serializer validation
+- For CharField use `blank=True` only; for numeric/date fields use `null=True`
 
-**What it is:** Axios API client functions organized by feature.
+**Q40. What is a UUID and why use it as a primary key?**
+UUID (Universally Unique Identifier) is a 128-bit randomly generated ID (e.g., `550e8400-e29b-41d4-a716-446655440000`). Unlike auto-increment integers (1, 2, 3...), UUIDs cannot be guessed, preventing IDOR (Insecure Direct Object Reference) attacks.
 
-- `auth.js` — login, register, logout, password reset calls
-- `ideas.js` — create, list, fetch, delete idea calls
-- `analysis.js` — fetch analysis results
-- `mentor.js` — chat API calls
-- `reports.js` — generate and download reports
+**Q41. What is React Query's `useQuery` vs `useMutation`?**
+- `useQuery` — for GET requests (reading data), with automatic caching and background refetching
+- `useMutation` — for POST/PUT/DELETE requests (writing data), with `onSuccess` callback to invalidate cached queries
 
-All calls go to `http://localhost:8000/api/v1/` in development.
+**Q42. What is spaCy used for specifically?**
+spaCy performs linguistic analysis:
+- Tokenization: "AI startup for healthcare" → ["AI", "startup", "for", "healthcare"]
+- Lemmatization: "running" → "run", "startups" → "startup"
+- POS tagging: "AI" → NOUN, "powerful" → ADJ
+- Named entity recognition: detecting proper nouns, organizations
 
----
+**Q43. What is WeasyPrint?**
+WeasyPrint converts HTML+CSS to PDF. The reports module renders a Django HTML template with all analysis data, then WeasyPrint generates a professional PDF document from it.
 
-## 9. Frontend — Pages
+**Q44. How many database tables does VentureIQ have?**
+38+ tables, including all Django internal tables (`django_migrations`, `auth_permission`, etc.) and the 13+ custom app tables.
 
-
-### `LandingPage.jsx`
-The public home/marketing page. Shown to visitors who are not logged in. Contains hero section, feature highlights, and call-to-action buttons to register or log in.
-
----
-
-### `LoginPage.jsx`
-Email + password login form.
-- Calls `POST /api/v1/auth/login/`
-- On success: stores JWT tokens, redirects to `/dashboard`
-- Shows error for wrong credentials
-- Links to `/forgot-password` and `/register`
-
----
-
-### `RegisterPage.jsx`
-New account registration form.
-- Fields: `full_name`, `email`, `password`, `role`
-- Calls `POST /api/v1/auth/register/`
-- On success: logs in automatically and redirects to `/dashboard`
+**Q45. What is `DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"` in settings?**
+It sets the default primary key type for all models that don't specify one. `BigAutoField` is a 64-bit integer auto-increment — supports up to 9.2 quintillion rows before overflow.
 
 ---
 
-### `ForgotPasswordPage.jsx`
-Enter email address to receive a password reset link.
-- Calls `POST /api/v1/auth/password/forgot/`
-- Always shows a success message (even if email doesn't exist — to prevent user enumeration)
+*End of Faculty Presentation Guide*
 
----
-
-### `ResetPasswordPage.jsx`
-Enter new password using the token from the email link.
-- Reads `token` from URL params (e.g. `/reset-password/abc123`)
-- Calls `POST /api/v1/auth/password/reset/`
-- On success: redirects to `/login`
-
----
-
-### `DashboardPage.jsx`
-The main screen after login. Shows:
-- Summary stats (total ideas, ideas by status)
-- Recent idea submissions
-- Quick action buttons (Submit Idea, View Reports)
-- Notification indicators
-
----
-
-### `IdeaListPage.jsx`
-Paginated list of all ideas submitted by the logged-in user.
-- Each idea shows: name, industry, status badge, created date
-- Clicking an idea goes to `IdeaDetailPage`
-- "New Idea" button links to `IdeaSubmissionPage`
-
----
-
-### `IdeaSubmissionPage.jsx`
-Multi-field form to submit a new startup idea.
-- Fields: startup name, tagline, description, target audience, industry, budget, business model, development stage, team size
-- File uploads: logo (PNG/JPG, max 5MB), pitch deck (PDF, max 20MB)
-- Industry-specific extra fields rendered dynamically based on selected category
-- On submit: calls `POST /api/v1/ideas/`, then polls `/status/` until analysis begins
-
----
-
-### `IdeaDetailPage.jsx`
-Full detail view of a single idea.
-- Shows all submitted fields
-- Shows current `analysis_status` with a progress indicator
-- Links to the analysis tabs when status is `complete`
-- Edit and delete buttons (soft-delete)
-
----
-
-### `AnalysisTabsPage.jsx`
-Container page for all analysis results. Renders a tab navigation bar with 8 tabs. Each tab is a separate nested route component (see Section 10).
-
----
-
-### `ComparisonPage.jsx`
-Side-by-side comparison of two ideas.
-- Lets user select any two of their own ideas
-- Calls the comparison API
-- Shows dimension-by-dimension score comparison
-- Displays AI-generated recommendation (idea A / idea B / equal)
-
----
-
-### `ReportsPage.jsx`
-PDF report management.
-- Lists existing reports for each idea
-- "Generate Report" button triggers report creation (async)
-- Shows status (generating / complete) with polling
-- "Download" button when complete
-
----
-
-### `PitchDeckEditorPage.jsx`
-Edit and export the AI-generated pitch deck.
-- Shows 8 editable sections: Problem, Solution, Market Opportunity, Business Model, Competitors, Revenue Model, Roadmap, Funding Requirement
-- User can customize any section
-- "Export PDF" button generates and downloads the pitch deck
-
----
-
-### `MentorChatPage.jsx`
-AI mentor chat interface.
-- Left panel: list of chat sessions
-- Right panel: message thread for the selected session
-- Messages have role badges: "You" vs "Mentor"
-- Can optionally link a session to a specific idea for context-aware answers
-- Uses Groq (Llama 3) AI model on the backend
-
----
-
-### `AnalyticsDashboardPage.jsx`
-Platform statistics for admins and mentors only.
-- Charts: ideas submitted over time, status distribution, industry breakdown
-- User registration trends
-- Analysis completion rates
-- Uses Recharts for visualization
-
----
-
-### `AdminPanelPage.jsx`
-Admin control panel with nested sub-pages (see Section 11).
-
----
-
-### `ProfilePage.jsx`
-View and edit the current user's profile.
-- Shows: avatar, name, email, role, bio
-- Edit: full_name, avatar_url, bio, theme (light/dark)
-- Change password form
-
----
-
-### `SubmissionHistoryPage.jsx`
-Full history of all idea submissions with filter and sort options. Shows all statuses including deleted ideas (soft-deleted).
-
----
-
-## 10. Frontend — Analysis Sub-tabs
-
-These are nested route components rendered inside `AnalysisTabsPage.jsx`.
-
-| File | Tab Name | What it shows |
-|------|----------|--------------|
-| `InnovationTab.jsx` | Innovation | Radar/bar chart of 5 innovation dimensions + composite score + explanations |
-| `MarketTab.jsx` | Market | Market opportunity score, competition level, demand analysis, growth potential |
-| `RiskTab.jsx` | Risk | 5 risk dimension scores + overall risk + mitigation recommendations |
-| `RecommendationsTab.jsx` | Recommendations | Revenue model, marketing tactics, acquisition channels, improvement suggestions |
-| `CompetitorsTab.jsx` | Competitors | Table of similar companies with similarity scores, strengths, and weaknesses |
-| `TeamTab.jsx` | Team | Recommended team roles with priority and justification |
-| `SchemesTab.jsx` | Schemes | Relevant government grants and incubation schemes based on industry |
-| `ChartsTab.jsx` | Charts | All scores visualized as charts (bar, radar, pie) using Recharts |
-
----
-
-## 11. Frontend — Admin Sub-pages
-
-These are nested route components rendered inside `AdminPanelPage.jsx`. Only accessible to users with `role = admin`.
-
-| File | Path | Purpose |
-|------|------|---------|
-| `UsersAdmin.jsx` | `/admin/users` | View all users, change roles, activate/deactivate accounts |
-| `CategoriesAdmin.jsx` | `/admin/categories` | Add, edit, or deactivate startup industry categories |
-| `ScoreWeightsAdmin.jsx` | `/admin/score-weights` | Adjust the 5 innovation scoring weights (must sum to 1.0) |
-| `AuditLogAdmin.jsx` | `/admin/audit-log` | Read-only view of all audit log entries with filters |
-| `MLAdmin.jsx` | `/admin/ml` | Trigger ML model retraining, view model accuracy stats |
-| `NotificationsAdmin.jsx` | `/admin/notifications` | Compose and broadcast notifications to users |
-
----
-
-## 12. Frontend — Components
-
-### `frontend/src/components/AuthGuard.jsx`
-**What it is:** A wrapper component that protects routes requiring login.
-- If user is not logged in → redirects to `/login`
-- If `roles` prop is provided → checks user's role; if not authorized → redirects to `/dashboard`
-- Usage: `<AuthGuard roles={['admin']}><AdminPanelPage /></AuthGuard>`
-
----
-
-### `frontend/src/components/Layout.jsx`
-**What it is:** The shared page shell used by all authenticated pages.
-- Top navigation bar with logo, user menu, notifications bell
-- Side navigation with links to all main sections
-- Main content area where page components are rendered
-- Responsive — collapses sidebar on mobile
-
----
-
-## Quick Reference: How Everything Connects
-
-```
-User opens browser
-  → React app loads (index.html → main.jsx → App.jsx)
-  → AuthContext checks localStorage for saved JWT token
-  → If logged in: shows Dashboard; If not: shows Landing page
-
-User submits an idea (IdeaSubmissionPage)
-  → POST /api/v1/ideas/ → ideas/views.py → saves Idea to DB
-  → analyze_idea.delay() → Celery picks it up
-  → nlp_engine processes text → scoring calculates scores
-  → all results saved to analysis models
-  → Idea.analysis_status updated to "complete"
-  → Frontend polls /status/ → shows "complete" → user clicks Analysis tab
-
-User views analysis (AnalysisTabsPage)
-  → GET /api/v1/ideas/<id>/analysis/ → returns all sub-results in one response
-  → Each tab reads its slice of data and renders charts/text
-
-Admin logs in
-  → AuthGuard checks role === "admin"
-  → Admin Panel shows user management, category management, score weights, audit logs
-```
-
----
-
-*This document was generated to help explain the VentureIQ codebase in detail for academic review.*
+*Project: VentureIQ — AI-Powered Startup Intelligence Platform*
+*Team: Parshva Shah | Jinang Shah | Jay Raval*
+*Institution: LJ University*
+*Academic Year: 2025–2026*
