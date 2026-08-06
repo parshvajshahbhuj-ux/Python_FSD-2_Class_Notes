@@ -550,13 +550,20 @@ Founder submits idea
 
 **Purpose:** Admin dashboard showing platform-wide statistics.
 
-**Data provided:**
-- Total ideas submitted, total users, analyses completed
-- Industry distribution (FinTech 30%, HealthTech 20%, etc.)
-- Monthly activity trends
-- Average scores by dimension
-- Top ideas leaderboard
-- Risk distribution (Low/Medium/High)
+**Data provided (all from real database queries):**
+- Total ideas submitted, total active users, analyses completed
+- Industry distribution — real count per category from `ideas_idea` JOIN `ideas_startupcategory`
+- Monthly activity — real submissions vs analyzed per month (last 6 months)
+- Growth trend — real idea count per month
+- Average scores by dimension — real platform-wide averages from `analysis_innovationscore`
+- Top ideas leaderboard — real scores from `analysis_innovationscore`
+- Risk distribution — real low/medium/high counts from `analysis_riskassessment`
+- Risk dimension averages — real averages of financial/technical/operational/market/legal risk
+- Investor readiness distribution — real band counts from `analysis_investorreadiness`
+- Average market score — real average from `analysis_marketintelligence`
+- Recent activity feed — real entries from `accounts_auditlog`
+
+**Important:** Analytics dashboard uses ONLY real database data. No fake, simulated, or Math.random() values anywhere.
 
 ---
 
@@ -602,14 +609,14 @@ Founder submits idea
 | Page | File | What it does |
 |------|------|-------------|
 | Dashboard | `DashboardPage.jsx` | Summary stats (ideas submitted, analyzed, avg score), recent ideas, quick action buttons |
-| Submit Idea | `IdeaSubmissionPage.jsx` | Multi-step form: Step 1 (basic info), Step 2 (business details), Step 3 (review & submit). Triggers analysis pipeline on submit |
+| Submit Idea | `IdeaSubmissionPage.jsx` | Multi-step form: Step 1 (select industry from 8 options), Step 2 (fill details — startup name, tagline, description, audience, business model, development stage, team size, expected revenue goal in format like 5L/10Cr/50K, industry-specific domain fields), Step 3 (review & submit). Triggers analysis pipeline on submit. Validates budget in number+unit format (5L, 10Cr, 50K, 1M) — pure numbers or letters alone are rejected, zero is rejected. |
 | Idea List | `IdeaListPage.jsx` | All submitted ideas with status badges (pending/processing/complete/failed), search, filter |
 | Idea Detail | `IdeaDetailPage.jsx` | Shows idea info + link to analysis tabs |
 | Analysis Tabs | `AnalysisTabsPage.jsx` | **13-tab view** covering all analysis dimensions (see below) |
 | Comparison | `ComparisonPage.jsx` | Select 2-3 ideas, side-by-side comparison table + radar chart |
 | Reports | `ReportsPage.jsx` | Generate and download PDF report for an idea |
 | AI Mentor | `MentorChatPage.jsx` | Chat interface. User types a question, Gemini AI answers in context of their startup |
-| Analytics | `AnalyticsDashboardPage.jsx` | 15+ chart types showing platform insights and their own performance data |
+| Analytics | `AnalyticsDashboardPage.jsx` | Real-time platform analytics with 5 charts: Industry Donut, Monthly Activity Bar, Risk Radar, Growth Area, Score Dimensions Bar — all using only real database data |
 | Profile | `ProfilePage.jsx` | Edit name, avatar, bio, theme preference, change password |
 | Submission History | `SubmissionHistoryPage.jsx` | Timeline view of all past idea submissions |
 | Pitch Deck Editor | `PitchDeckEditorPage.jsx` | Auto-generates a pitch deck from analysis data |
@@ -636,7 +643,7 @@ Founder submits idea
 | 10. Team | Required roles table with skills needed |
 | 11. Investor Readiness | Score gauge + checklist of what's missing |
 | 12. Govt. Schemes | Relevant government startup schemes by industry |
-| 13. Charts | 8 advanced charts (candlestick, bubble, radar, waterfall, heatmap, gauges, sparklines, polar wheel) |
+| 13. Charts | 8 advanced charts using real per-idea sub-scores: Score Candlestick (real min/avg/max), Bubble Scatter (real innovation vs risk), Multi-Dimension Radar (real risk dimensions), Score Waterfall (real score breakdown), Performance Heatmap (real sub-scores per idea), Gauge Meters, Efficiency Wheel, and Sparkline Trends |
 
 ---
 
@@ -1426,6 +1433,48 @@ WeasyPrint converts HTML+CSS to PDF. The reports module renders a Django HTML te
 
 **Q45. What is `DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"` in settings?**
 It sets the default primary key type for all models that don't specify one. `BigAutoField` is a 64-bit integer auto-increment — supports up to 9.2 quintillion rows before overflow.
+
+---
+
+**Q46. Is the analytics dashboard data real or simulated?**
+
+All data in the analytics dashboard comes directly from the PostgreSQL database using Django ORM aggregations. There is no fake, simulated, or Math.random() data anywhere.
+
+- **Industry Distribution** — `COUNT(*)` query grouped by `ideas_startupcategory.name`
+- **Monthly Activity** — `TruncMonth` annotation on `ideas_idea.created_at` with `analysis_status='complete'` filter
+- **Score Averages** — `Avg()` aggregate on `analysis_innovationscore` columns
+- **Risk Distribution** — iterate all `RiskAssessment` records and bucket by `overall_risk_score`
+- **Top Ideas** — `InnovationScore.objects.order_by('-composite_score')[:5]`
+- **Growth Trend** — monthly count of new `Idea` records
+
+If a chart has no data (e.g., no ideas submitted yet), it shows a clean "No data yet" empty state instead of fake placeholder values.
+
+---
+
+**Q47. What validation rules are applied on the idea submission form?**
+
+- **Startup Name** — letters only, no numbers, no gibberish (must contain vowels, no 5+ consecutive consonants), 3–60 characters
+- **Tagline** — 5–100 characters, must contain real words
+- **Description** — 5–100 words, no URLs allowed
+- **Expected Revenue Goal** — must follow number+unit format: `5L`, `10Cr`, `50K`, `1M` (with optional `₹` prefix). Pure numbers (`500`) or pure letters (`L`) are rejected. Zero (`0L`) is rejected.
+- **Team Size** — numbers only, 1–10000
+- **Required dropdowns** — target audience, business model, development stage must be selected
+- **Domain fields** — industry-specific required fields validated per industry
+
+---
+
+**Q48. How is the `budget_range` field validated?**
+
+Uses a regex pattern: `/^₹?\d+(\.\d+)?\s*(L|Lakh|K|Thousand|Cr|Crore|M|Million)$/i`
+
+This enforces:
+- Optional `₹` at start
+- Required digit(s) — `\d+`
+- Optional decimal — `(\.\d+)?`
+- Optional space
+- Required unit at end — `L`, `Lakh`, `K`, `Thousand`, `Cr`, `Crore`, `M`, or `Million` (case insensitive)
+
+After regex passes, the numeric part is extracted and checked: if `parseFloat(numericPart) === 0` → rejected with "Revenue goal cannot be zero."
 
 ---
 
